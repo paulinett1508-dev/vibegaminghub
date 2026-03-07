@@ -1,10 +1,12 @@
 // =====================================================================
-// escorpiao.js — Jogo Escorpiao Standalone v2.0
+// escorpiao.js — Jogo Escorpiao Standalone v2.2
 // =====================================================================
-// Canvas fullscreen, escorpiao anda autonomamente em direcao a comida
-// Maca (vermelha) -> cresce | Brocolis (verde) -> encolhe
-// Segmentos dinamicos: 8-40, cauda sempre os ultimos 6
-// Tap/clique: particulas + redireciona o escorpiao
+// - Maca (vermelha): escorpiao cresce | Brocolis (verde): encolhe
+// - Crianca pode IGNORAR o brocolis (ele some sozinho)
+// - Varias comidas acumulam na tela (max depende da fase)
+// - Comidas somem se nao forem comidas a tempo (piscam antes de sumir)
+// - MAX_SEGS: passa de fase (comidas somem mais rapido)
+// - GAMEOVER_SEGS: escorpiao ficou pequenininho -> reinicia
 // =====================================================================
 
 (function () {
@@ -14,16 +16,23 @@
 
     const CONF = {
         BODY_START:      1,
-        TAIL_LEN:        6,     // ultimos N segmentos sao sempre cauda
+        TAIL_LEN:        6,
         HEAD_LERP:       0.10,
         SEG_DIST:        22,
         EAT_RADIUS:      32,
-        INITIAL_SEGS:    7,     // cabeca + 0 corpo + 6 cauda (so a "bolinha" inicial)
-        FOOD_MARGIN:     70,    // margem minima das bordas
-        MIN_SEGS:        7,     // nao encolhe abaixo do tamanho inicial
-        MAX_SEGS:        40,
+        FOOD_MARGIN:     70,
+        INITIAL_SEGS:    7,
+        GAMEOVER_SEGS:   4,   // reinicia se encolher ate aqui
+        MAX_SEGS:        34,  // passa de fase se crescer ate aqui
         GROW_AMOUNT:     3,
         SHRINK_AMOUNT:   3,
+        BLINK_THRESHOLD: 90,  // frames antes de sumir que começa a piscar
+        // Config por fase (index 0 = fase 1, etc.)
+        FASES: [
+            { spawnInterval: 180, foodLife: 420, maxFoods: 3 }, // fase 1: 3s spawn, 7s vida, max 3
+            { spawnInterval: 120, foodLife: 240, maxFoods: 4 }, // fase 2: 2s spawn, 4s vida, max 4
+            { spawnInterval:  80, foodLife: 180, maxFoods: 5 }, // fase 3: 1.3s spawn, 3s vida, max 5
+        ],
         C: {
             LIGHT: '#fde047',
             MID:   '#d97706',
@@ -36,39 +45,33 @@
     };
 
     const EscorpiaoGame = {
-        segs:         [],
-        targetX:      0,
-        targetY:      0,
-        wanderTimer:  0,   // nao usado (sem movimento autonomo)
-        animFrame:    null,
-        frameCount:   0,
-        ctx:          null,
-        canvas:       null,
-        _onKey:       null,
-        _onResize:    null,
-        _foodTimeout: null,
-        comida:       null,
-        particulas:   [],
-        ac:           null,
+        segs:       [],
+        targetX:    0,
+        targetY:    0,
+        animFrame:  null,
+        frameCount: 0,
+        ctx:        null,
+        canvas:     null,
+        _onKey:     null,
+        _onResize:  null,
+        comidas:    [],
+        spawnTimer: 0,
+        faseIdx:    0,
+        particulas: [],
+        ac:         null,
+        _bloqueado: false,
+
+        _getFase() {
+            return CONF.FASES[Math.min(this.faseIdx, CONF.FASES.length - 1)];
+        },
 
         abrir() {
             const cx = window.innerWidth  / 2;
             const cy = window.innerHeight / 2;
+            this.faseIdx = 0;
+            this._resetEstado(cx, cy);
 
-            // Inicializa segmentos empilhados verticalmente no centro (comeca pequeno)
-            this.segs = [];
-            for (let i = 0; i < CONF.INITIAL_SEGS; i++) {
-                this.segs.push({ x: cx, y: cy + i * CONF.SEG_DIST });
-            }
-            this.targetX     = cx;
-            this.targetY     = cy;
-            this.wanderTimer = 0;
-            this.frameCount  = 0;
-            this.comida      = null;
-            this.particulas  = [];
-            this._foodTimeout = null;
-
-            // Overlay principal
+            // Overlay
             const overlay = document.createElement('div');
             overlay.id = 'escorpiao-overlay';
             overlay.style.cssText = [
@@ -98,9 +101,9 @@
             ].join(';');
             closeBtn.innerHTML = '<span class="material-icons" style="font-size:20px;">close</span>';
             closeBtn.addEventListener('mouseenter', () => {
-                closeBtn.style.background   = '#1e293b';
-                closeBtn.style.color        = '#94a3b8';
-                closeBtn.style.borderColor  = '#334155';
+                closeBtn.style.background  = '#1e293b';
+                closeBtn.style.color       = '#94a3b8';
+                closeBtn.style.borderColor = '#334155';
             });
             closeBtn.addEventListener('mouseleave', () => {
                 closeBtn.style.background  = '#0f172a';
@@ -110,6 +113,18 @@
             closeBtn.addEventListener('click', () =>
                 window.fecharJoguinhos ? window.fecharJoguinhos() : EscorpiaoGame.fechar()
             );
+
+            // Indicador de fase (canto superior esquerdo)
+            const faseEl = document.createElement('div');
+            faseEl.id = 'escorpiao-fase';
+            faseEl.style.cssText = [
+                'position:absolute', 'top:20px', 'left:20px',
+                'font-family:"Russo One",sans-serif',
+                'font-size:0.8rem', 'color:#1e3a5f',
+                'pointer-events:none', 'user-select:none',
+                'transition:color 0.5s',
+            ].join(';');
+            faseEl.textContent = 'Fase 1';
 
             // Label instrucao
             const label = document.createElement('div');
@@ -124,13 +139,13 @@
 
             overlay.appendChild(canvas);
             overlay.appendChild(closeBtn);
+            overlay.appendChild(faseEl);
             overlay.appendChild(label);
             document.body.appendChild(overlay);
 
-            // Fade da instrucao depois de 3.5s
             setTimeout(() => { label.style.opacity = '0'; }, 3500);
 
-            // Toque/clique (com guard para nao disparar no botao fechar)
+            // Toque / clique
             overlay.addEventListener('click', (e) => {
                 if (closeBtn.contains(e.target)) return;
                 EscorpiaoGame._toqueEm(e.clientX, e.clientY);
@@ -141,14 +156,14 @@
                 EscorpiaoGame._toqueEm(e.touches[0].clientX, e.touches[0].clientY);
             }, { passive: false });
 
-            // ESC fecha
+            // ESC
             this._onKey = (e) => {
                 if (e.key === 'Escape')
                     (window.fecharJoguinhos ? window.fecharJoguinhos() : EscorpiaoGame.fechar());
             };
             document.addEventListener('keydown', this._onKey);
 
-            // Redimensionamento
+            // Resize
             this._onResize = () => {
                 if (EscorpiaoGame.canvas) {
                     EscorpiaoGame.canvas.width  = window.innerWidth;
@@ -156,9 +171,6 @@
                 }
             };
             window.addEventListener('resize', this._onResize);
-
-            // Primeira comida apos 1.2s
-            this._foodTimeout = setTimeout(() => EscorpiaoGame._spawnComida(), 1200);
 
             // Game loop
             const loop = () => {
@@ -171,45 +183,84 @@
             loop();
         },
 
+        _resetEstado(cx, cy) {
+            this.segs = [];
+            for (let i = 0; i < CONF.INITIAL_SEGS; i++) {
+                this.segs.push({ x: cx, y: cy + i * CONF.SEG_DIST });
+            }
+            this.targetX    = cx;
+            this.targetY    = cy;
+            this.frameCount = 0;
+            this.comidas    = [];
+            this.spawnTimer = this._getFase().spawnInterval - 80; // primeira comida rapido (~1.3s)
+            this.particulas = [];
+            this._bloqueado = false;
+        },
+
         fechar() {
-            if (this._foodTimeout)  { clearTimeout(this._foodTimeout);         this._foodTimeout = null; }
-            if (this.animFrame)     { cancelAnimationFrame(this.animFrame);     this.animFrame = null; }
-            if (this._onKey)        { document.removeEventListener('keydown', this._onKey); this._onKey = null; }
-            if (this._onResize)     { window.removeEventListener('resize', this._onResize); this._onResize = null; }
-            if (this.ac)            { this.ac.close(); this.ac = null; }
+            if (this.animFrame) { cancelAnimationFrame(this.animFrame); this.animFrame = null; }
+            if (this._onKey)    { document.removeEventListener('keydown', this._onKey); this._onKey = null; }
+            if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; }
+            if (this.ac)        { this.ac.close(); this.ac = null; }
             const overlay = document.getElementById('escorpiao-overlay');
             if (overlay) overlay.remove();
-            this.ctx       = null;
-            this.canvas    = null;
-            this.comida    = null;
+            this.ctx        = null;
+            this.canvas     = null;
+            this.comidas    = [];
             this.particulas = [];
         },
 
-        // ---- Fisica ----
+        // ---- Fisica e logica ----
         _atualizar() {
+            if (this._bloqueado) return;
+
             const segs = this.segs;
 
-            // Cabeca acompanha o alvo com LERP
+            // Cabeca segue o alvo com LERP
             segs[0].x += (this.targetX - segs[0].x) * CONF.HEAD_LERP;
             segs[0].y += (this.targetY - segs[0].y) * CONF.HEAD_LERP;
 
-            // Cada segmento segue o anterior mantendo SEG_DIST
+            // Chain following
             for (let i = 1; i < segs.length; i++) {
                 const dx   = segs[i].x - segs[i - 1].x;
                 const dy   = segs[i].y - segs[i - 1].y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > CONF.SEG_DIST) {
-                    const f  = (dist - CONF.SEG_DIST) / dist;
+                    const f   = (dist - CONF.SEG_DIST) / dist;
                     segs[i].x -= dx * f;
                     segs[i].y -= dy * f;
                 }
             }
 
-            // Verifica se comeu
-            if (this.comida) {
-                this.comida.t++;
-                const d = Math.hypot(segs[0].x - this.comida.x, segs[0].y - this.comida.y);
-                if (d < CONF.EAT_RADIUS) this._comer();
+            // Comidas: tick, verificar comer, remover expiradas
+            for (let i = this.comidas.length - 1; i >= 0; i--) {
+                const c = this.comidas[i];
+                c.t++;
+                c.vida--;
+
+                if (c.vida <= 0) {
+                    // Expirou: poof discreto
+                    this._spawnParticulas(c.x, c.y, '#334155', 6);
+                    this.comidas.splice(i, 1);
+                    continue;
+                }
+
+                const d = Math.hypot(segs[0].x - c.x, segs[0].y - c.y);
+                if (d < CONF.EAT_RADIUS) {
+                    this._comerFood(c);
+                    this.comidas.splice(i, 1);
+                }
+            }
+
+            // Spawn timer
+            const fase = this._getFase();
+            if (this.comidas.length < fase.maxFoods) {
+                if (++this.spawnTimer >= fase.spawnInterval) {
+                    this._spawnComida();
+                    this.spawnTimer = 0;
+                }
+            } else {
+                this.spawnTimer = 0;
             }
 
             // Fisica das particulas
@@ -231,11 +282,10 @@
             const segs = this.segs;
             const t    = this.frameCount;
 
-            // Fundo
             ctx.fillStyle = CONF.C.BG;
             ctx.fillRect(0, 0, W, H);
 
-            // Grade de pontos decorativa
+            // Grade decorativa
             ctx.fillStyle = CONF.C.GRID;
             for (let x = 21; x < W; x += 42) {
                 for (let y = 21; y < H; y += 42) {
@@ -245,35 +295,16 @@
                 }
             }
 
-            // Particulas (por baixo de tudo)
             this._desenharParticulas(ctx);
+            this._desenharComidas(ctx);
 
-            // Comida
-            if (this.comida) this._desenharComida(ctx);
-
-            // Angulo de direcao da cabeca
-            const dx = segs[0].x - segs[1].x;
-            const dy = segs[0].y - segs[1].y;
+            const dx        = segs.length > 1 ? segs[0].x - segs[1].x : 1;
+            const dy        = segs.length > 1 ? segs[0].y - segs[1].y : 0;
             const headAngle = Math.atan2(dy, dx);
 
-            // Escorpiao: corpo -> cauda -> cabeca
             this._desenharCorpo(ctx, segs, t);
-            this._desenharCauda(ctx, segs, t);
+            this._desenharCauda(ctx, segs);
             this._desenharCabeca(ctx, segs[0], headAngle, t);
-        },
-
-        // ---- Novo alvo ----
-        _novoAlvo(x, y) {
-            const W = this.canvas ? this.canvas.width  : window.innerWidth;
-            const H = this.canvas ? this.canvas.height : window.innerHeight;
-            const m = CONF.FOOD_MARGIN;
-            if (x !== undefined) {
-                this.targetX = x;
-                this.targetY = y;
-            } else {
-                this.targetX = m + Math.random() * (W - m * 2);
-                this.targetY = m + Math.random() * (H - m * 2);
-            }
         },
 
         // ---- Spawnar comida ----
@@ -282,67 +313,134 @@
             const W    = this.canvas.width;
             const H    = this.canvas.height;
             const m    = CONF.FOOD_MARGIN;
-            const tipo = Math.random() < 0.6 ? 'maca' : 'brocolis';
-            const cor  = tipo === 'maca' ? '#ef4444' : '#22c55e';
+            const fase = this._getFase();
 
-            // Posicao longe da cabeca (min 120px)
-            let x, y, tentativas = 0;
-            do {
-                x = m + Math.random() * (W - m * 2);
-                y = m + Math.random() * (H - m * 2);
+            // Alternar: se tem muita maca na tela, aumenta chance de brocolis
+            const macasNaTela = this.comidas.filter(c => c.tipo === 'maca').length;
+            const probMaca    = macasNaTela >= 2 ? 0.35 : 0.6;
+            const tipo        = Math.random() < probMaca ? 'maca' : 'brocolis';
+            const cor         = tipo === 'maca' ? '#ef4444' : '#22c55e';
+
+            // Posicao longe de outras comidas e da cabeca
+            let x, y, tentativas = 0, ok = false;
+            while (!ok && tentativas < 20) {
+                x  = m + Math.random() * (W - m * 2);
+                y  = m + Math.random() * (H - m * 2);
+                const longeDeComidas = this.comidas.every(c => Math.hypot(x - c.x, y - c.y) > 80);
+                const longeDaCabeca  = Math.hypot(x - this.segs[0].x, y - this.segs[0].y) > 100;
+                ok = longeDeComidas && longeDaCabeca;
                 tentativas++;
-            } while (
-                tentativas < 10 &&
-                Math.hypot(x - this.segs[0].x, y - this.segs[0].y) < 120
-            );
+            }
 
-            this.comida = { x, y, tipo, cor, t: 0 };
+            this.comidas.push({ x, y, tipo, cor, t: 0, vida: fase.foodLife });
             this._somAparecer();
         },
 
         // ---- Comer ----
-        _comer() {
-            const { x, y, tipo, cor } = this.comida;
-            this._spawnParticulas(x, y, cor, 24);
-            this._somComer(tipo);
-            this.comida = null;
+        _comerFood(food) {
+            this._spawnParticulas(food.x, food.y, food.cor, 24);
+            this._somComer(food.tipo);
 
-            if (tipo === 'maca') {
-                // Adicionar segmentos antes da cauda
-                const tIdx = this.segs.length - CONF.TAIL_LEN;
+            if (food.tipo === 'maca') {
+                const tIdx = Math.max(1, this.segs.length - CONF.TAIL_LEN);
                 const ref  = this.segs[tIdx - 1];
                 for (let i = 0; i < CONF.GROW_AMOUNT; i++) {
                     if (this.segs.length < CONF.MAX_SEGS)
                         this.segs.splice(tIdx, 0, { x: ref.x, y: ref.y });
                 }
+                if (this.segs.length >= CONF.MAX_SEGS) this._passarDeFase();
             } else {
-                // Remover segmentos do corpo
-                const tIdx      = this.segs.length - CONF.TAIL_LEN;
+                const tIdx       = Math.max(1, this.segs.length - CONF.TAIL_LEN);
                 const removeFrom = Math.max(1, tIdx - CONF.SHRINK_AMOUNT);
-                let count        = tIdx - removeFrom;
-                const maxRemove  = this.segs.length - CONF.MIN_SEGS;
-                count = Math.min(count, maxRemove);
+                const maxRemove  = this.segs.length - CONF.GAMEOVER_SEGS;
+                const count      = Math.min(tIdx - removeFrom, maxRemove);
                 if (count > 0) this.segs.splice(removeFrom, count);
+                if (this.segs.length <= CONF.GAMEOVER_SEGS) this._pequenino();
+            }
+        },
+
+        // ---- Passou de fase ----
+        _passarDeFase() {
+            this._bloqueado = true;
+            this.comidas    = [];
+            this.spawnTimer = 0;
+
+            const anterior = this.faseIdx;
+            this.faseIdx   = Math.min(this.faseIdx + 1, CONF.FASES.length - 1);
+
+            const txt = anterior < this.faseIdx
+                ? `Fase ${this.faseIdx + 1}!`
+                : 'Incrivel!';
+            this._mostrarMensagem(txt, '#fde047');
+
+            // Atualizar label de fase no DOM
+            const faseEl = document.getElementById('escorpiao-fase');
+            if (faseEl) faseEl.textContent = `Fase ${this.faseIdx + 1}`;
+
+            setTimeout(() => {
+                EscorpiaoGame._bloqueado = false;
+            }, 2000);
+        },
+
+        // ---- Ficou pequenininho ----
+        _pequenino() {
+            this._bloqueado = true;
+            this.comidas    = [];
+            this._mostrarMensagem('Pequenininho!', '#60a5fa');
+            setTimeout(() => {
+                if (!EscorpiaoGame.canvas) return;
+                const cx = EscorpiaoGame.canvas.width  / 2;
+                const cy = EscorpiaoGame.canvas.height / 2;
+                EscorpiaoGame._resetEstado(cx, cy);
+            }, 2000);
+        },
+
+        // ---- Overlay de mensagem temporaria ----
+        _mostrarMensagem(texto, cor) {
+            const overlay = document.getElementById('escorpiao-overlay');
+            if (!overlay) return;
+
+            // Injeta keyframe se ainda nao existir
+            if (!document.getElementById('escKF')) {
+                const style = document.createElement('style');
+                style.id    = 'escKF';
+                style.textContent = '@keyframes escFadeOut{'
+                    + '0%{opacity:0;transform:scale(0.5)}'
+                    + '20%{opacity:1;transform:scale(1.08)}'
+                    + '80%{opacity:1;transform:scale(1)}'
+                    + '100%{opacity:0;transform:scale(0.8)}'
+                    + '}';
+                document.head.appendChild(style);
             }
 
-            this._foodTimeout = setTimeout(() => EscorpiaoGame._spawnComida(), 900);
+            const el = document.createElement('div');
+            el.style.cssText = [
+                'position:absolute', 'inset:0', 'z-index:20',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                'pointer-events:none',
+            ].join(';');
+            el.innerHTML = `<span style="font-family:'Russo One',sans-serif;`
+                + `font-size:clamp(2.5rem,10vw,5rem);color:${cor};`
+                + `text-shadow:0 0 40px ${cor};`
+                + `animation:escFadeOut 2s forwards;">${texto}</span>`;
+            overlay.appendChild(el);
+            setTimeout(() => el.remove(), 2100);
         },
 
         // ---- Toque ----
         _toqueEm(x, y) {
+            if (this._bloqueado) return;
             this._initAudio();
-            // Redireciona temporariamente; voltara para a comida quando chegar
-            this._novoAlvo(x, y);
+            this.targetX = x;
+            this.targetY = y;
             this._spawnParticulas(x, y, '#fde047', 10);
             this._somToque();
         },
 
-        // ---- Audio (lazy init) ----
+        // ---- Audio (lazy) ----
         _initAudio() {
             if (!this.ac) {
-                try {
-                    this.ac = new (window.AudioContext || window.webkitAudioContext)();
-                } catch (e) {}
+                try { this.ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
             }
         },
 
@@ -363,18 +461,33 @@
             }
         },
 
-        // ---- Desenhar comida ----
-        _desenharComida(ctx) {
-            const { x, tipo, cor, t } = this.comida;
+        // ---- Desenhar todas as comidas ----
+        _desenharComidas(ctx) {
+            for (const c of this.comidas) {
+                let alpha = 1;
+                if (c.vida < CONF.BLINK_THRESHOLD) {
+                    // Pisca acelerando conforme fica mais proximo de sumir
+                    const freq = 0.15 + 0.25 * (1 - c.vida / CONF.BLINK_THRESHOLD);
+                    alpha = 0.4 + 0.6 * Math.abs(Math.sin(c.t * freq));
+                }
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                this._desenharUmaComida(ctx, c);
+                ctx.restore();
+            }
+        },
+
+        _desenharUmaComida(ctx, food) {
+            const { x, tipo, cor, t } = food;
             const bob = Math.sin(t * 0.09) * 4;
-            const cy  = this.comida.y + bob;
+            const cy  = food.y + bob;
 
             ctx.save();
             ctx.shadowColor = cor;
             ctx.shadowBlur  = 20;
 
             if (tipo === 'maca') {
-                // Corpo vermelho
+                // Corpo
                 ctx.beginPath();
                 ctx.arc(x, cy, 13, 0, Math.PI * 2);
                 ctx.fillStyle = '#ef4444';
@@ -399,7 +512,7 @@
                 ctx.fillStyle = 'rgba(255,255,255,0.25)';
                 ctx.fill();
             } else {
-                // Brocolis: cabo
+                // Cabo
                 ctx.shadowBlur = 0;
                 ctx.beginPath();
                 ctx.moveTo(x, cy + 8);
@@ -422,7 +535,6 @@
                     ctx.fillStyle = '#22c55e';
                     ctx.fill();
                 }
-                // Brilho nos topos
                 ctx.shadowBlur = 0;
                 for (const tp of tops) {
                     ctx.beginPath();
@@ -431,11 +543,9 @@
                     ctx.fill();
                 }
             }
-
             ctx.restore();
         },
 
-        // ---- Desenhar particulas ----
         _desenharParticulas(ctx) {
             ctx.save();
             for (const p of this.particulas) {
@@ -453,61 +563,46 @@
         _somComer(tipo) {
             this._initAudio();
             if (!this.ac) return;
-            const ac   = this.ac;
-            const osc  = ac.createOscillator();
-            const gain = ac.createGain();
-            osc.connect(gain);
-            gain.connect(ac.destination);
+            const ac = this.ac, osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
             osc.type = 'sine';
             if (tipo === 'maca') {
-                // Tom subindo: sensacao de crescer
                 osc.frequency.setValueAtTime(300, ac.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(700, ac.currentTime + 0.10);
                 osc.frequency.exponentialRampToValueAtTime(400, ac.currentTime + 0.35);
             } else {
-                // Tom descendo: sensacao de encolher
                 osc.frequency.setValueAtTime(600, ac.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(200, ac.currentTime + 0.30);
             }
             gain.gain.setValueAtTime(0.30, ac.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.45);
-            osc.start();
-            osc.stop(ac.currentTime + 0.5);
+            osc.start(); osc.stop(ac.currentTime + 0.5);
         },
 
         _somAparecer() {
-            // Nao toca antes da primeira interacao (politica do browser)
             if (!this.ac) return;
-            const ac   = this.ac;
-            const osc  = ac.createOscillator();
-            const gain = ac.createGain();
-            osc.connect(gain);
-            gain.connect(ac.destination);
+            const ac = this.ac, osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(500, ac.currentTime);
             osc.frequency.exponentialRampToValueAtTime(700, ac.currentTime + 0.15);
             gain.gain.setValueAtTime(0.12, ac.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
-            osc.start();
-            osc.stop(ac.currentTime + 0.3);
+            osc.start(); osc.stop(ac.currentTime + 0.3);
         },
 
         _somToque() {
             if (!this.ac) return;
-            const ac   = this.ac;
-            const osc  = ac.createOscillator();
-            const gain = ac.createGain();
-            osc.connect(gain);
-            gain.connect(ac.destination);
+            const ac = this.ac, osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
             osc.type = 'sine';
             osc.frequency.setValueAtTime(350, ac.currentTime);
             gain.gain.setValueAtTime(0.15, ac.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
-            osc.start();
-            osc.stop(ac.currentTime + 0.2);
+            osc.start(); osc.stop(ac.currentTime + 0.2);
         },
 
-        // ---- Gradiente radial helper ----
+        // ---- Helpers de desenho ----
         _rg(ctx, cx, cy, r, c0, c1, c2) {
             const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.08, cx, cy, r);
             g.addColorStop(0,    c0);
@@ -516,17 +611,14 @@
             return g;
         },
 
-        // ---- Corpo: segmentos dinamicos com patas ----
         _desenharCorpo(ctx, segs, t) {
-            const tailStart = segs.length - CONF.TAIL_LEN;
+            const tailStart = Math.max(1, segs.length - CONF.TAIL_LEN);
             const bodyLen   = tailStart - CONF.BODY_START;
-
             for (let i = CONF.BODY_START; i < tailStart; i++) {
                 const s    = segs[i];
                 const prog = bodyLen > 1 ? (i - CONF.BODY_START) / (bodyLen - 1) : 0;
                 const rx   = _lerp(12, 7.5, prog);
                 const ry   = _lerp(9.5, 6,   prog);
-
                 ctx.beginPath();
                 ctx.ellipse(s.x, s.y, rx * 1.15, ry, 0, 0, Math.PI * 2);
                 ctx.fillStyle   = this._rg(ctx, s.x, s.y, rx, CONF.C.AMBER, CONF.C.MID, CONF.C.DARK);
@@ -534,13 +626,10 @@
                 ctx.strokeStyle = 'rgba(120,53,15,0.45)';
                 ctx.lineWidth   = 1;
                 ctx.stroke();
-
-                // Patas
                 const wiggle = Math.sin(t * 0.10 + i * 0.88) * 9;
                 for (const side of [-1, 1]) {
                     const legTipX = s.x + side * (rx * 1.15 + 13);
                     const legTipY = s.y + wiggle * side * 0.45;
-
                     ctx.beginPath();
                     ctx.moveTo(s.x + side * rx * 0.85, s.y);
                     ctx.lineTo(legTipX, legTipY);
@@ -548,7 +637,6 @@
                     ctx.lineWidth   = 1.8;
                     ctx.lineCap     = 'round';
                     ctx.stroke();
-
                     ctx.beginPath();
                     ctx.arc(legTipX, legTipY, 2, 0, Math.PI * 2);
                     ctx.fillStyle = CONF.C.AMBER;
@@ -557,33 +645,25 @@
             }
         },
 
-        // ---- Cauda: ultimos TAIL_LEN segmentos com ferrao ----
         _desenharCauda(ctx, segs) {
-            const tailStart = segs.length - CONF.TAIL_LEN;
+            const tailStart = Math.max(1, segs.length - CONF.TAIL_LEN);
             const total     = segs.length;
+            const tailLen   = total - tailStart;
             ctx.save();
-
             for (let i = tailStart; i < total; i++) {
                 const s       = segs[i];
-                const prog    = (i - tailStart) / (CONF.TAIL_LEN - 1);
+                const prog    = tailLen > 1 ? (i - tailStart) / (tailLen - 1) : 0;
                 const r       = _lerp(6, 2.5, prog);
                 const isSting = (i === total - 1);
-
-                if (isSting) {
-                    ctx.shadowColor = 'rgba(253,224,71,0.85)';
-                    ctx.shadowBlur  = 14;
-                }
-
+                if (isSting) { ctx.shadowColor = 'rgba(253,224,71,0.85)'; ctx.shadowBlur = 14; }
                 ctx.beginPath();
                 ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
                 ctx.fillStyle = this._rg(ctx, s.x, s.y, r, CONF.C.LIGHT, CONF.C.MID, CONF.C.DARK);
                 ctx.fill();
-
-                if (isSting) {
+                if (isSting && segs.length > 1) {
                     ctx.shadowBlur = 0;
                     const prev       = segs[i - 1];
                     const stingAngle = Math.atan2(s.y - prev.y, s.x - prev.x);
-
                     ctx.save();
                     ctx.translate(s.x, s.y);
                     ctx.rotate(stingAngle);
@@ -599,20 +679,16 @@
                     ctx.restore();
                 }
             }
-
             ctx.restore();
         },
 
-        // ---- Cabeca com olhos e garras ----
         _desenharCabeca(ctx, head, angle, t) {
             const r = 14;
             ctx.save();
             ctx.translate(head.x, head.y);
             ctx.rotate(angle);
-
             ctx.shadowColor = 'rgba(251,191,36,0.32)';
             ctx.shadowBlur  = 24;
-
             ctx.beginPath();
             ctx.ellipse(0, 0, r * 1.38, r, 0, 0, Math.PI * 2);
             ctx.fillStyle   = this._rg(ctx, 0, 0, r * 1.38, CONF.C.LIGHT, CONF.C.MID, CONF.C.DARK);
@@ -621,8 +697,6 @@
             ctx.lineWidth   = 1;
             ctx.stroke();
             ctx.shadowBlur  = 0;
-
-            // Olhos
             for (const ey of [-r * 0.38, r * 0.38]) {
                 ctx.beginPath();
                 ctx.arc(r * 0.36, ey, 3.5, 0, Math.PI * 2);
@@ -633,43 +707,22 @@
                 ctx.fillStyle = 'rgba(255,255,255,0.62)';
                 ctx.fill();
             }
-
-            // Garras / queliceras
             const clawWiggle = Math.sin(t * 0.07) * 5;
             for (const side of [-1, 1]) {
-                const bx     = r * 1.22;
-                const by     = side * 5;
-                const ex     = bx + 14;
+                const bx = r * 1.22, by = side * 5, ex = bx + 14;
                 const spread = side * (7 + clawWiggle * side);
-
-                ctx.beginPath();
-                ctx.moveTo(r * 0.9, side * 4);
-                ctx.lineTo(bx, by);
-                ctx.strokeStyle = 'rgba(217,119,6,0.92)';
-                ctx.lineWidth   = 3.5;
-                ctx.lineCap     = 'round';
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.moveTo(bx, by);
-                ctx.lineTo(ex, by + spread * 0.58);
-                ctx.strokeStyle = CONF.C.AMBER;
-                ctx.lineWidth   = 2.5;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.moveTo(bx, by);
-                ctx.lineTo(ex - 3, by - spread * 0.38);
-                ctx.strokeStyle = CONF.C.LIGHT;
-                ctx.lineWidth   = 2;
-                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(r * 0.9, side * 4); ctx.lineTo(bx, by);
+                ctx.strokeStyle = 'rgba(217,119,6,0.92)'; ctx.lineWidth = 3.5;
+                ctx.lineCap = 'round'; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, by + spread * 0.58);
+                ctx.strokeStyle = CONF.C.AMBER; ctx.lineWidth = 2.5; ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex - 3, by - spread * 0.38);
+                ctx.strokeStyle = CONF.C.LIGHT; ctx.lineWidth = 2; ctx.stroke();
             }
-
             ctx.restore();
         },
     };
 
-    // Exposicao global
     window.EscorpiaoGame = EscorpiaoGame;
 
 })();
