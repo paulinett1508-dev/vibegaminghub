@@ -83,10 +83,8 @@
     };
 
     function initSprites() {
-        var img = new Image();
-        img.onload = function () { _sheet = img; _sheetIsImg = true;  _sheetReady = true; };
-        img.onerror = function () { _sheet = _buildSheet(); _sheetIsImg = false; _sheetReady = true; };
-        img.src = 'assets/sprites/sonic/sonic.png';
+        // Sem PNG externo: gerar sheet procedural imediatamente (GIFs têm prioridade)
+        _sheet = _buildSheet(); _sheetIsImg = false; _sheetReady = true;
     }
 
     function initGifs() {
