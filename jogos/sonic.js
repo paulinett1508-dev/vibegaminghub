@@ -1,834 +1,1031 @@
 // =====================================================================
-// sonic.js — Jogo Sonic Runner v1.0
+// sonic.js — Jogo Sonic Runner v2.0 (Green Hill Zone)
 // =====================================================================
-// Endless runner estilo Green Hill Zone, Sonic procedural (sem sprites)
-// Coletar aneis dourados, pular obstaculos, sem game over
-// Toque/Space para pular, ESC para sair
+// Fisica baseada no Retro Engine / Sonic 1 (Sega Genesis)
+// Spin Dash, spin-invincibility, molas, 3 tipos de inimigo
+// Tap/Space = pular | Botao SD / Z = spin dash | ESC = sair
+// Inspirado em: EmanuelNogueira/Sonic_game, RSDKModding/RSDKv4-Decompilation
 // =====================================================================
 
 (function () {
     'use strict';
 
-    // ---- Configuracao ----
-    var CONF = {
-        // Cores - Green Hill Zone
-        SKY_TOP:        '#5ab9f5',
-        SKY_BOTTOM:     '#87ceeb',
-        HILL_COLOR:     '#5cc052',
-        HILL_DARK:      '#4aa040',
-        CHECKER_A:      '#7a4f2c',
-        CHECKER_B:      '#9a6f3c',
-        GROUND_TOP:     '#5cc052',
-        GROUND_MID:     '#4aa040',
-        GROUND_DIRT:    '#8B6914',
-        CLOUD_COLOR:    'rgba(255,255,255,0.85)',
-
-        // Sonic
-        SONIC_BLUE:     '#1d4ed8',
-        SONIC_BLUE2:    '#2563eb',
-        SONIC_BELLY:    '#fde68a',
-        SONIC_SHOE:     '#dc2626',
-        SONIC_SKIN:     '#fbbf24',
-
-        // Anel
-        RING_GOLD:      '#fbbf24',
-        RING_LIGHT:     '#fde68a',
-
-        // Fisica
-        GRAVITY:        0.55,
-        JUMP_VEL:       -14,
-        INITIAL_SPEED:  5,
-        MAX_SPEED:      13,
-        ACCELERATION:   0.003,
-
-        // Gameplay
-        STUMBLE_DUR:    50,
-        INVINCIBLE_FR:  90,
-        CELEBRATE_EVERY: 10,
-        RING_SPAWN_INT: 80,
+    // ---- Fisica (valores Retro Engine escalados para canvas px/frame) ----
+    var PHY = {
+        JUMP:          -13.5,   // velocidade inicial do pulo
+        GRAVITY:        0.40,   // gravidade (0.21875 * 2 escala)
+        SPRING:        -19,     // boost da mola
+        SD_BASE:        8,      // velocidade base do spin dash
+        SD_PER_LEVEL:   1.3,    // velocidade extra por nivel de carga
+        SD_MAX_LEVEL:   8,
+        SD_FRAMES_PER_LEVEL: 10, // frames por nivel de carga
+        SD_BOOST_DURATION:  45, // frames de boost ao soltar
+        WORLD_INIT:     5.5,
+        WORLD_MAX:      13,
+        WORLD_ACCEL:    0.003,
     };
 
-    var overlay, canvas, ctx;
-    var W, H, GROUND_Y;
-    var animFrame = null;
-    var ac = null;
+    // ---- Cores (paleta Green Hill Zone autentica) ----
+    var C = {
+        SKY_TOP:    '#4878C8', SKY_BOT:    '#98C8F8',
+        HILL_FAR:   '#3858A8', HILL_MID:   '#3A7028', HILL_NEAR:  '#509040',
+        CHECK_D:    '#7A4818', CHECK_L:    '#A06828',
+        GROUND_G:   '#509040', GROUND_DG:  '#387028', GROUND_B:   '#985820',
+        CLOUD:      'rgba(255,255,255,0.90)',
+        BLUE:       '#1E50D8', BLUE_D:     '#143898', BLUE_L:     '#4070F8',
+        BELLY:      '#F0C060', MUZZLE:     '#E8B040',
+        EYE_W:      '#FFFFFF', EYE_G:      '#185818', EYE_P:      '#08080E',
+        GLOVE:      '#F8F8F8',
+        SHOE:       '#C02020', SHOE_W:     '#E0E0D8', BUCKLE:     '#F0D020',
+        RING:       '#F8B800', RING_L:     '#FFE040',
+    };
 
-    var _jumpHandler = null;
-    var _keyHandler  = null;
-    var _resizeHandler = null;
+    // ---- Variaveis globais ----
+    var overlay, canvas, ctx, W, H, GY;
+    var animFrame = null, ac = null;
+    var _kh = null, _th = null, _rh = null;
+    var inputJump = false, inputSD = false;
+    var sdBtnEl = null;
+    var S; // estado do jogo
 
-    var state = {};
-
-    // ---- Estado do jogo ----
-
+    // ---- Estado inicial ----
     function initState() {
-        GROUND_Y = H * 0.58;
-        state = {
-            t:          0,
-            speed:      CONF.INITIAL_SPEED,
-            rings:      0,
-            bgOffset:   0,
-            hillOffset: 0,
+        GY = H * 0.62;
+        S = {
+            t: 0, scroll: 0,
+            worldSpeed: PHY.WORLD_INIT,
+            sdBoostFrames: 0, sdBoostVal: 0,
 
             // Sonic
-            x:          W * 0.2,
-            y:          GROUND_Y - 32,
-            vy:         0,
-            onGround:   true,
-            stumble:    0,
-            invincible: 0,
+            x: W * 0.22, y: GY,
+            ysp: 0, onGround: true,
+            phase: 'run', // run|jump|roll|spindash|hurt
+            sdLevel: 0, sdHoldTimer: 0,
+            hurtTimer: 0,
+
+            // Stats
+            rings: 0, score: 0,
+            invincible: 0, celebrating: 0,
 
             // Objetos
-            ringItems:      [],
-            obstacles:      [],
-            scattered:      [],
-            confetti:       [],
-            celebrating:    0,
+            ringItems: [], obstacles: [],
+            scattered: [], confetti: [],
+            dust: [], popups: [],
 
-            // Clouds
-            clouds: [
-                { x: W * 0.2, y: H * 0.1, w: 80, speed: 0.4 },
-                { x: W * 0.55, y: H * 0.07, w: 110, speed: 0.3 },
-                { x: W * 0.8, y: H * 0.13, w: 70, speed: 0.5 },
-            ],
+            // Spawn
+            nextRing: 80, nextObs: 160, obsInterval: 160,
         };
     }
 
     // ---- Audio ----
-
-    function ensureAC() {
-        if (!ac) {
-            try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
-        }
+    function initAC() {
+        if (!ac) try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
         if (ac && ac.state === 'suspended') ac.resume();
     }
 
-    function playTone(freq1, freq2, dur, type, vol) {
+    function tone(f1, f2, dur, type, vol, delay) {
         if (!ac) return;
-        var o = ac.createOscillator();
-        var g = ac.createGain();
+        var o = ac.createOscillator(), g = ac.createGain();
         o.connect(g); g.connect(ac.destination);
         o.type = type || 'sine';
-        o.frequency.setValueAtTime(freq1, ac.currentTime);
-        if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, ac.currentTime + dur * 0.8);
-        g.gain.setValueAtTime(vol || 0.18, ac.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
-        o.start(ac.currentTime);
-        o.stop(ac.currentTime + dur);
+        var t0 = ac.currentTime + (delay || 0);
+        o.frequency.setValueAtTime(f1, t0);
+        if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur * 0.85);
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        o.start(t0); o.stop(t0 + dur + 0.05);
     }
 
-    function playRingSound() {
-        playTone(880, 1760, 0.25, 'sine', 0.2);
-    }
-
-    function playJumpSound() {
-        playTone(380, 760, 0.18, 'square', 0.14);
-    }
-
-    function playHitSound() {
-        if (!ac) return;
-        var o = ac.createOscillator();
-        var g = ac.createGain();
-        o.connect(g); g.connect(ac.destination);
-        o.type = 'sawtooth';
-        o.frequency.setValueAtTime(220, ac.currentTime);
-        o.frequency.exponentialRampToValueAtTime(90, ac.currentTime + 0.35);
-        g.gain.setValueAtTime(0.18, ac.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
-        o.start(); o.stop(ac.currentTime + 0.4);
-    }
-
-    function playCelebration() {
-        if (!ac) return;
-        [523, 659, 784, 1047].forEach(function (freq, i) {
-            var o = ac.createOscillator();
-            var g = ac.createGain();
-            o.connect(g); g.connect(ac.destination);
-            o.type = 'triangle';
-            o.frequency.value = freq;
-            var t0 = ac.currentTime + i * 0.09;
-            g.gain.setValueAtTime(0.15, t0);
-            g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
-            o.start(t0); o.stop(t0 + 0.3);
-        });
+    // Som autentico do anel Sonic (dois tons ascendentes)
+    function sfxRing()      { tone(880, null, 0.07, 'sine', 0.18); tone(1760, null, 0.16, 'sine', 0.12, 0.07); }
+    function sfxJump()      { tone(300, 620, 0.18, 'square', 0.12); }
+    function sfxSpring()    { tone(380, 1200, 0.12, 'sine', 0.18); tone(1200, 750, 0.2, 'sine', 0.12, 0.12); }
+    function sfxHurt()      { tone(240, 75, 0.42, 'sawtooth', 0.14); }
+    function sfxSDCharge(l) { tone(160 + l * 50, 200 + l * 50, 0.1, 'sawtooth', 0.07); }
+    function sfxSDRelease() { tone(380, 900, 0.22, 'square', 0.14); }
+    function sfxEnemy()     { tone(350, 140, 0.14, 'triangle', 0.13); }
+    function sfxCelebrate() {
+        [523, 659, 784, 1047].forEach(function (f, i) { tone(f, null, 0.2, 'triangle', 0.13, i * 0.09); });
     }
 
     // ---- Spawn ----
-
     function spawnRings() {
         var count = 2 + Math.floor(Math.random() * 4);
-        var sx = W + 50;
+        var sx = W + 55;
+        var pattern = Math.floor(Math.random() * 3);
         for (var i = 0; i < count; i++) {
-            state.ringItems.push({
-                x: sx + i * 32,
-                y: GROUND_Y - 25 - Math.random() * 55,
-                phase: Math.random() * Math.PI * 2,
-            });
+            var ry = pattern === 0 ? GY - 22 - Math.random() * 55
+                   : pattern === 1 ? GY - 20 - i * 24
+                   : GY - 28;
+            S.ringItems.push({ x: sx + (pattern === 2 ? i * 30 : i * 22), y: ry, ph: Math.random() * 6.28 });
         }
     }
 
     function spawnObstacle() {
-        var type = Math.random() < 0.5 ? 'spike' : 'crab';
-        state.obstacles.push({ x: W + 60, y: GROUND_Y, type: type, t: 0 });
+        // Pesos: crabmeat 30%, motobug 30%, spike 25%, spring 15%
+        var r = Math.random(), type;
+        if      (r < 0.30) type = 'crabmeat';
+        else if (r < 0.60) type = 'motobug';
+        else if (r < 0.85) type = 'spike';
+        else               type = 'spring';
+        S.obstacles.push({ x: W + 90, y: GY, type: type, t: 0, compressed: 0 });
     }
 
     function spawnConfetti() {
-        var colors = ['#fbbf24', '#f472b6', '#38bdf8', '#34d399', '#a855f7', '#fb923c'];
-        for (var i = 0; i < 32; i++) {
-            state.confetti.push({
-                x: state.x,
-                y: state.y - 20,
-                vx: (Math.random() - 0.5) * 11,
-                vy: -4 - Math.random() * 8,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                size: 4 + Math.random() * 4,
-                life: 55 + Math.floor(Math.random() * 25),
+        var cols = ['#F8B800','#F472B6','#38BDF8','#34D399','#A855F7','#FB923C'];
+        for (var i = 0; i < 36; i++) {
+            S.confetti.push({
+                x: S.x, y: S.y - 25,
+                vx: (Math.random() - 0.5) * 13, vy: -2 - Math.random() * 9,
+                color: cols[Math.floor(Math.random() * cols.length)],
+                size: 4 + Math.random() * 4, life: 55 + Math.floor(Math.random() * 20),
             });
         }
     }
 
-    // ---- Update ----
-
+    // ---- Update / Fisica ----
     function update() {
-        state.t++;
+        S.t++;
 
-        // Velocidade progressiva
-        state.speed = Math.min(CONF.MAX_SPEED, CONF.INITIAL_SPEED + state.t * CONF.ACCELERATION);
-        state.bgOffset += state.speed;
-        state.hillOffset += state.speed * 0.35;
+        // Velocidade do mundo (aumenta com o tempo)
+        S.worldSpeed = Math.min(PHY.WORLD_MAX, PHY.WORLD_INIT + S.t * PHY.WORLD_ACCEL);
 
-        // Fisica do Sonic
-        state.vy += CONF.GRAVITY;
-        state.y  += state.vy;
-        state.onGround = false;
-        if (state.y >= GROUND_Y - 32) {
-            state.y = GROUND_Y - 32;
-            state.vy = 0;
-            state.onGround = true;
+        // Velocidade de scroll = mundo + boost do spin dash
+        var sp = S.worldSpeed;
+        if (S.sdBoostFrames > 0) {
+            sp += S.sdBoostVal * (S.sdBoostFrames / PHY.SD_BOOST_DURATION);
+            S.sdBoostFrames--;
+        }
+        S.scroll += sp;
+
+        // ---- Maquina de estados do Sonic ----
+
+        // Spin Dash
+        if (S.phase === 'spindash') {
+            if (inputSD) {
+                S.sdHoldTimer++;
+                if (S.sdHoldTimer % PHY.SD_FRAMES_PER_LEVEL === 0 && S.sdLevel < PHY.SD_MAX_LEVEL) {
+                    S.sdLevel++;
+                    sfxSDCharge(S.sdLevel);
+                }
+                if (S.t % 3 === 0) addDust(S.x - 15, S.y - 10, -2, (Math.random() - 0.5) * 2, 14);
+            } else {
+                // Soltar: calcular boost e mudar para roll
+                S.sdBoostVal    = PHY.SD_BASE + S.sdLevel * PHY.SD_PER_LEVEL;
+                S.sdBoostFrames = PHY.SD_BOOST_DURATION;
+                S.sdLevel = 0; S.sdHoldTimer = 0;
+                S.phase = 'roll';
+                sfxSDRelease();
+                for (var b = 0; b < 18; b++) addDust(S.x - 20, S.y - 10, -(Math.random() * 7 + 2), (Math.random() - 0.5) * 5, 22);
+            }
+        } else if (inputSD && S.onGround && S.phase !== 'hurt') {
+            S.phase = 'spindash'; S.sdLevel = 0; S.sdHoldTimer = 0;
+            sfxSDCharge(0);
         }
 
-        if (state.stumble    > 0) state.stumble--;
-        if (state.invincible > 0) state.invincible--;
+        // Pulo
+        if (inputJump) {
+            if (S.onGround && S.phase !== 'spindash' && S.phase !== 'hurt') {
+                S.ysp = PHY.JUMP; S.onGround = false;
+                S.phase = 'jump'; sfxJump();
+            }
+            inputJump = false;
+        }
 
-        // Spawn ritmico
-        if (state.t % CONF.RING_SPAWN_INT === 0) spawnRings();
-        var obstInt = Math.max(55, 140 - Math.floor(state.t * 0.04));
-        if (state.t % obstInt === 0) spawnObstacle();
+        // Fisica vertical
+        if (!S.onGround) {
+            S.ysp += PHY.GRAVITY;
+            S.y   += S.ysp;
+            if (S.y >= GY) {
+                S.y = GY; S.ysp = 0; S.onGround = true;
+                if (S.phase === 'jump') S.phase = 'run';
+                else if (S.phase === 'roll' && S.sdBoostFrames <= 0) S.phase = 'run';
+            }
+        }
 
-        // Nuvens
-        state.clouds.forEach(function (c) {
-            c.x -= c.speed;
-            if (c.x < -150) c.x = W + 100;
-        });
+        // Roll termina quando boost acaba
+        if (S.phase === 'roll' && S.sdBoostFrames <= 0 && S.onGround) S.phase = 'run';
 
-        // Aneis
-        state.ringItems = state.ringItems.filter(function (r) {
-            r.x -= state.speed;
-            var dx = r.x - state.x;
-            var dy = r.y - state.y;
-            if (dx * dx + dy * dy < 28 * 28) {
-                state.rings++;
-                playRingSound();
-                if (state.rings % CONF.CELEBRATE_EVERY === 0) {
-                    state.celebrating = 70;
-                    playCelebration();
-                    spawnConfetti();
+        // Hurt timer
+        if (S.phase === 'hurt') {
+            S.hurtTimer++;
+            if (S.hurtTimer > 55) { S.phase = 'run'; S.hurtTimer = 0; }
+        }
+
+        if (S.invincible > 0) S.invincible--;
+
+        // ---- Spawn ----
+        if (--S.nextRing <= 0) { spawnRings(); S.nextRing = 80; }
+        if (--S.nextObs  <= 0) {
+            spawnObstacle();
+            S.obsInterval = Math.max(50, S.obsInterval * 0.968);
+            S.nextObs = Math.floor(S.obsInterval);
+        }
+
+        // ---- Aneis ----
+        S.ringItems = S.ringItems.filter(function (r) {
+            r.x -= sp;
+            if (S.phase !== 'hurt') {
+                var dx = r.x - S.x, dy = r.y - S.y;
+                if (dx * dx + dy * dy < 32 * 32) {
+                    S.rings++; S.score += 10; sfxRing();
+                    if (S.rings % 10 === 0) { S.celebrating = 70; sfxCelebrate(); spawnConfetti(); }
+                    return false;
                 }
-                return false;
             }
             return r.x > -30;
         });
 
-        // Obstaculos
-        state.obstacles = state.obstacles.filter(function (o) {
-            o.x -= state.speed;
-            o.t++;
-            if (state.invincible === 0) {
-                var dx = Math.abs(o.x - state.x);
-                var dy = Math.abs((o.y - 25) - state.y);
-                if (dx < 22 && dy < 32) {
-                    state.stumble    = CONF.STUMBLE_DUR;
-                    state.invincible = CONF.INVINCIBLE_FR;
-                    // Espalhar aneis
-                    var lost = Math.min(state.rings, 3 + Math.floor(Math.random() * 5));
+        // ---- Obstaculos ----
+        var isSpinning = S.phase === 'jump' || S.phase === 'roll';
+
+        S.obstacles = S.obstacles.filter(function (o) {
+            o.x -= sp; o.t++;
+            if (o.compressed > 0) o.compressed = Math.max(0, o.compressed - 0.09);
+
+            var dx = Math.abs(o.x - S.x);
+            var dy = Math.abs((o.y - 28) - S.y);
+
+            if (o.type === 'spring') {
+                // Mola: ativar ao cair sobre ela
+                if (dx < 22 && Math.abs(o.y - 20 - S.y) < 22 && S.ysp >= -1) {
+                    o.compressed = 1;
+                    S.ysp = PHY.SPRING; S.phase = 'jump'; S.onGround = false;
+                    sfxSpring();
+                }
+                return o.x > -70;
+            }
+
+            var isEnemy = o.type === 'crabmeat' || o.type === 'motobug';
+            var hitW = o.type === 'spike' ? 32 : 28;
+            var hitH = o.type === 'spike' ? 36 : 40;
+
+            if (S.invincible === 0 && S.phase !== 'hurt' && dx < hitW && dy < hitH) {
+                if (isSpinning && isEnemy) {
+                    // Derrotar inimigo girando!
+                    S.ysp = -8; S.onGround = false;
+                    S.score += 100; sfxEnemy();
+                    S.popups.push({ x: o.x, y: o.y - 42, text: '+100', life: 42 });
+                    addDust(o.x, o.y - 20, 0, -3, 20);
+                    return false;
+                } else if (!isSpinning || o.type === 'spike') {
+                    // Levar dano
+                    S.invincible = 120; S.phase = 'hurt'; S.hurtTimer = 0;
+                    S.ysp = -9; S.onGround = false;
+                    var lost = Math.min(S.rings, 3 + Math.floor(Math.random() * 5));
                     for (var i = 0; i < lost; i++) {
-                        state.scattered.push({
-                            x: state.x, y: state.y - 10,
-                            vx: (Math.random() - 0.5) * 9,
-                            vy: -5 - Math.random() * 7,
-                            life: 55,
-                        });
+                        var ang = (i / Math.max(lost, 1)) * Math.PI * 2;
+                        S.scattered.push({ x: S.x, y: S.y - 20, vx: Math.cos(ang) * 5.5, vy: Math.sin(ang) * 5.5 - 3, life: 65, t: 0 });
                     }
-                    state.rings = Math.max(0, state.rings - lost);
-                    playHitSound();
+                    S.rings = Math.max(0, S.rings - lost); sfxHurt();
                 }
             }
-            return o.x > -80;
+            return o.x > -85;
         });
 
         // Aneis espalhados
-        state.scattered = state.scattered.filter(function (r) {
-            r.x += r.vx - state.speed * 0.4;
-            r.vy += 0.3;
-            r.y  += r.vy;
-            r.life--;
+        S.scattered = S.scattered.filter(function (r) {
+            r.x += r.vx - sp * 0.35; r.vy += 0.28; r.y += r.vy; r.t++; r.life--;
             return r.life > 0;
         });
 
+        // Poeira
+        S.dust = S.dust.filter(function (p) {
+            p.x += p.vx - sp * 0.18; p.vy += 0.06; p.y += p.vy; p.life--;
+            return p.life > 0;
+        });
+
         // Confetti
-        if (state.celebrating > 0) state.celebrating--;
-        state.confetti = state.confetti.filter(function (c) {
-            c.x  += c.vx;
-            c.y  += c.vy;
-            c.vy += 0.2;
-            c.life--;
+        if (S.celebrating > 0) S.celebrating--;
+        S.confetti = S.confetti.filter(function (c) {
+            c.x += c.vx - sp * 0.12; c.vy += 0.2; c.y += c.vy; c.life--;
             return c.life > 0;
         });
+
+        // Popups de pontuacao
+        S.popups = S.popups.filter(function (p) { p.x -= sp; p.y -= 0.6; p.life--; return p.life > 0; });
     }
 
-    // ---- Desenho do fundo ----
-
-    function drawBackground() {
-        // Ceu
-        var sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-        sky.addColorStop(0, CONF.SKY_TOP);
-        sky.addColorStop(1, CONF.SKY_BOTTOM);
-        ctx.fillStyle = sky;
-        ctx.fillRect(0, 0, W, GROUND_Y);
-
-        // Nuvens
-        state.clouds.forEach(function (c) {
-            drawCloud(c.x, c.y, c.w);
-        });
-
-        // Colinas (parallax lento)
-        var hOff = state.hillOffset % (W * 0.6);
-        ctx.fillStyle = CONF.HILL_DARK;
-        for (var i = -1; i < 4; i++) {
-            var hx = i * W * 0.6 - hOff + W * 0.3;
-            ctx.beginPath();
-            ctx.arc(hx, GROUND_Y + 50, 140, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Tabuleiro de xadrez (cliff face - GHZ)
-        var sz  = 22;
-        var off = state.bgOffset % (sz * 2);
-        var rows = 3;
-        for (var row = 0; row < rows; row++) {
-            for (var col = -2; col < Math.ceil(W / sz) + 3; col++) {
-                var cx2 = col * sz - off;
-                var cy2 = GROUND_Y + row * sz;
-                ctx.fillStyle = (col + row) % 2 === 0 ? CONF.CHECKER_B : CONF.CHECKER_A;
-                ctx.fillRect(cx2, cy2, sz, sz);
-            }
-        }
-
-        // Chao verde
-        ctx.fillStyle = CONF.GROUND_TOP;
-        ctx.fillRect(0, GROUND_Y - 12, W, 14);
-
-        // Faixa escura
-        ctx.fillStyle = CONF.GROUND_MID;
-        ctx.fillRect(0, GROUND_Y + 2, W, 8);
-
-        // Terra
-        ctx.fillStyle = CONF.GROUND_DIRT;
-        ctx.fillRect(0, GROUND_Y + 10, W, H - GROUND_Y - 10);
-    }
-
-    function drawCloud(x, y, w) {
-        ctx.fillStyle = CONF.CLOUD_COLOR;
-        ctx.beginPath();
-        ctx.arc(x,          y,      w * 0.28, 0, Math.PI * 2);
-        ctx.arc(x + w * 0.22, y - 8, w * 0.22, 0, Math.PI * 2);
-        ctx.arc(x + w * 0.5,  y,     w * 0.26, 0, Math.PI * 2);
-        ctx.arc(x + w * 0.75, y + 5, w * 0.20, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // ---- Desenho do Sonic ----
-
-    function drawSonic(x, y, t, stumble, onGround, vy, speed) {
-        ctx.save();
-        ctx.translate(x, y);
-
-        // Piscar quando invincivel
-        if (stumble > 0 && Math.floor(t / 4) % 2 === 0) {
-            ctx.globalAlpha = 0.45;
-        }
-
-        var isJumping = !onGround;
-        var lean = Math.min(speed / CONF.MAX_SPEED * 0.3, 0.28);
-        ctx.rotate(lean);
-
-        if (isJumping) {
-            // Pose de pulo — bolinha enrolada
-            drawSonicBall(t);
-        } else {
-            // Pose de corrida
-            drawSonicRun(t);
-        }
-
-        ctx.restore();
-    }
-
-    function drawSonicBall(t) {
-        var spin = (t * 0.35) % (Math.PI * 2);
-        ctx.save();
-        ctx.rotate(spin);
-
-        // Corpo azul
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        ctx.beginPath();
-        ctx.arc(0, 0, 22, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Barriga
-        ctx.fillStyle = CONF.SONIC_BELLY;
-        ctx.beginPath();
-        ctx.ellipse(-3, 3, 11, 9, -0.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Espinho visivel
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        ctx.beginPath();
-        ctx.moveTo(-20, -5);
-        ctx.lineTo(-30, -14);
-        ctx.lineTo(-14, -18);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.restore();
-    }
-
-    function drawSonicRun(t) {
-        var leg = Math.sin(t * 0.3) * 10;
-
-        // --- Sombra no chao ---
-        ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        ctx.beginPath();
-        ctx.ellipse(2, 32, 18, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // --- Pernas ---
-        drawSonicLeg(ctx,  -6 + leg * 0.3,  18,  leg * 0.06);
-        drawSonicLeg(ctx,   4 - leg * 0.3,  18, -leg * 0.06);
-
-        // --- Tenis ---
-        drawShoe(ctx, -6 + leg * 0.5, 30);
-        drawShoe(ctx,  6 - leg * 0.5, 30);
-
-        // --- Corpo ---
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        ctx.beginPath();
-        ctx.ellipse(1, 3, 14, 19, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Barriga
-        ctx.fillStyle = CONF.SONIC_BELLY;
-        ctx.beginPath();
-        ctx.ellipse(4, 7, 8, 13, 0.15, 0, Math.PI * 2);
-        ctx.fill();
-
-        // --- Espinhos (3) ---
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        drawSpike(ctx, -4,  -12, -2.2, 22, 8);
-        drawSpike(ctx, -9,  -5,  -2.0, 18, 7);
-        drawSpike(ctx, -11,  3,  -1.8, 15, 6);
-
-        // --- Cabeca ---
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        ctx.beginPath();
-        ctx.arc(4, -14, 18, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Cara (area mais clara)
-        ctx.fillStyle = '#3b82f6';
-        ctx.beginPath();
-        ctx.ellipse(9, -13, 11, 13, 0.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Olho
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.ellipse(13, -16, 8, 7, 0.1, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#1a1a2e';
-        ctx.beginPath();
-        ctx.arc(15, -15, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Brilho olho
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(17, -17, 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Nariz
-        ctx.fillStyle = '#1a1a2e';
-        ctx.beginPath();
-        ctx.arc(20, -10, 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Boca (expressao determinada)
-        ctx.strokeStyle = '#1a1a2e';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(14, -6);
-        ctx.quadraticCurveTo(18, -4, 22, -7);
-        ctx.stroke();
-
-        // Braco
-        ctx.strokeStyle = CONF.SONIC_BLUE;
-        ctx.lineWidth = 7;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        var armSwing = Math.sin(t * 0.3 + Math.PI) * 7;
-        ctx.moveTo(2, -2);
-        ctx.lineTo(12 + armSwing, 8);
-        ctx.stroke();
-
-        // Luva branca
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(12 + armSwing, 8, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    function drawSpike(ctx, bx, by, angle, length, width) {
-        ctx.save();
-        ctx.translate(bx, by);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(-width / 2, 0);
-        ctx.lineTo(0, -length);
-        ctx.lineTo(width / 2, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-    }
-
-    function drawSonicLeg(ctx, x, y, angle) {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        ctx.fillStyle = CONF.SONIC_BLUE;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 5, 9, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    }
-
-    function drawShoe(ctx, x, y) {
-        // Sola preta
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.ellipse(x, y + 2, 13, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Tenis vermelho
-        ctx.fillStyle = CONF.SONIC_SHOE;
-        ctx.beginPath();
-        ctx.ellipse(x, y - 1, 13, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Faixa branca
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x - 11, y - 2, 22, 3);
-        // Brilho
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath();
-        ctx.ellipse(x - 3, y - 4, 5, 2, -0.2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // ---- Desenho do anel ----
-
-    function drawRing(x, y, phase, t) {
-        ctx.save();
-        ctx.translate(x, y);
-        // Efeito 3D de rotacao
-        var scaleX = Math.abs(Math.cos((t + phase) * 0.06)) * 0.55 + 0.45;
-        ctx.scale(scaleX, 1);
-
-        ctx.strokeStyle = CONF.RING_GOLD;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = CONF.RING_LIGHT;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(-2, -2, 5, Math.PI * 1.3, Math.PI * 2.1);
-        ctx.stroke();
-
-        ctx.restore();
-    }
-
-    // ---- Desenho dos obstaculos ----
-
-    function drawObstacle(o) {
-        ctx.save();
-        ctx.translate(o.x, o.y);
-
-        if (o.type === 'spike') {
-            // Ferroes metalicos
-            ctx.fillStyle = '#94a3b8';
-            for (var i = -1; i <= 1; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * 16,      0);
-                ctx.lineTo(i * 16 + 8, -32);
-                ctx.lineTo(i * 16 + 16, 0);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillStyle = '#cbd5e1';
-                ctx.beginPath();
-                ctx.moveTo(i * 16 + 4, 0);
-                ctx.lineTo(i * 16 + 8, -26);
-                ctx.lineTo(i * 16 + 6, 0);
-                ctx.fill();
-                ctx.fillStyle = '#94a3b8';
-            }
-        } else {
-            // Caranguejo inimigo (Crabmeat)
-            var bob = Math.sin(o.t * 0.12) * 4;
-
-            // Corpo
-            ctx.fillStyle = '#dc2626';
-            ctx.beginPath();
-            ctx.ellipse(0, -22 + bob, 22, 14, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath();
-            ctx.ellipse(0, -24 + bob, 15, 9, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Garras
-            ctx.fillStyle = '#dc2626';
-            ctx.beginPath();
-            ctx.ellipse(-30, -20 + bob, 11, 8, 0.4, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(30, -20 + bob, 11, 8, -0.4, 0, Math.PI * 2);
-            ctx.fill();
-            // Pingas das garras
-            ctx.fillStyle = '#b91c1c';
-            ctx.beginPath();
-            ctx.moveTo(-37, -16 + bob);
-            ctx.lineTo(-42, -10 + bob);
-            ctx.lineTo(-36, -12 + bob);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(37, -16 + bob);
-            ctx.lineTo(42, -10 + bob);
-            ctx.lineTo(36, -12 + bob);
-            ctx.fill();
-
-            // Olhos
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(-8, -27 + bob, 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(8, -27 + bob, 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#1a1a1a';
-            ctx.beginPath();
-            ctx.arc(-7, -27 + bob, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(9, -27 + bob, 3, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Pernas
-            ctx.strokeStyle = '#b91c1c';
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            for (var l = -2; l <= 2; l++) {
-                var legPhase = Math.sin(o.t * 0.15 + l) * 5;
-                ctx.beginPath();
-                ctx.moveTo(l * 8, -10 + bob);
-                ctx.lineTo(l * 9 + legPhase, 0);
-                ctx.stroke();
-            }
-        }
-
-        ctx.restore();
-    }
-
-    // ---- HUD ----
-
-    function drawHUD() {
-        // Painel de aneis (canto superior direito)
-        ctx.fillStyle = 'rgba(0,0,0,0.45)';
-        ctx.beginPath();
-        ctx.arc(W - 110, 38, 28, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillRect(W - 82, 10, 72, 56);
-        ctx.beginPath();
-        ctx.arc(W - 38, 38, 28, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Icone de anel
-        ctx.strokeStyle = CONF.RING_GOLD;
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(W - 100, 38, 10, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.strokeStyle = CONF.RING_LIGHT;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(W - 102, 36, 5, Math.PI * 1.3, Math.PI * 2.1);
-        ctx.stroke();
-
-        // Numero
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 22px "Russo One", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(state.rings, W - 82, 45);
-
-        // Velocidade (pontinhos)
-        var speedPct = (state.speed - CONF.INITIAL_SPEED) / (CONF.MAX_SPEED - CONF.INITIAL_SPEED);
-        var dots = Math.round(speedPct * 5);
-        ctx.textAlign = 'left';
-        for (var i = 0; i < 5; i++) {
-            ctx.fillStyle = i < dots ? '#38bdf8' : 'rgba(255,255,255,0.2)';
-            ctx.beginPath();
-            ctx.arc(16 + i * 15, 30, 5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-
-    function drawCelebration() {
-        var alpha = Math.min(1, state.celebrating / 30);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(0, H / 2 - 65, W, 80);
-
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold clamp(20px, 6vw, 36px) "Russo One", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(state.rings + ' aneis!', W / 2, H / 2 - 20);
-
-        ctx.restore();
+    function addDust(x, y, vx, vy, life) {
+        S.dust.push({ x: x, y: y, vx: vx, vy: vy, life: life, maxLife: life });
     }
 
     // ---- Render principal ----
-
     function draw() {
         ctx.clearRect(0, 0, W, H);
+        drawBG();
 
-        drawBackground();
+        // Aneis do nivel
+        S.ringItems.forEach(function (r) { drawRing(r.x, r.y, r.ph); });
 
-        // Aneis do cenario
-        state.ringItems.forEach(function (r) {
-            drawRing(r.x, r.y, r.phase, state.t);
+        // Aneis espalhados (piscando)
+        S.scattered.forEach(function (r) {
+            ctx.globalAlpha = (r.life / 65) * (Math.floor(r.t / 4) % 2 === 0 ? 1 : 0.4);
+            drawRing(r.x, r.y, 0);
+            ctx.globalAlpha = 1;
         });
 
-        // Aneis espalhados (apos colisao)
-        state.scattered.forEach(function (r) {
-            ctx.globalAlpha = r.life / 55;
-            drawRing(r.x, r.y, 0, state.t);
+        // Poeira
+        S.dust.forEach(function (p) {
+            ctx.globalAlpha = (p.life / p.maxLife) * 0.55;
+            ctx.fillStyle = '#C8906A';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3 + (1 - p.life / p.maxLife) * 5, 0, Math.PI * 2);
+            ctx.fill();
             ctx.globalAlpha = 1;
         });
 
         // Obstaculos
-        state.obstacles.forEach(drawObstacle);
-
-        // Sonic
-        drawSonic(state.x, state.y, state.t, state.stumble, state.onGround, state.vy, state.speed);
+        S.obstacles.forEach(drawObstacle);
 
         // Confetti
-        state.confetti.forEach(function (c) {
-            ctx.fillStyle = c.color;
+        S.confetti.forEach(function (c) {
             ctx.globalAlpha = c.life / 70;
+            ctx.fillStyle = c.color;
             ctx.fillRect(c.x - c.size / 2, c.y - c.size / 2, c.size, c.size);
         });
         ctx.globalAlpha = 1;
 
-        drawHUD();
+        // Sonic
+        drawSonic();
 
-        if (state.celebrating > 0) drawCelebration();
+        // Popups
+        S.popups.forEach(function (p) {
+            ctx.globalAlpha = p.life / 42;
+            ctx.fillStyle = '#FFE040';
+            ctx.font = 'bold 16px "Russo One", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.globalAlpha = 1;
+        });
+
+        drawHUD();
+        if (S.celebrating > 0) drawCelebration();
     }
 
-    // ---- Loop principal ----
+    // ================================================================
+    // BACKGROUND — Green Hill Zone, 4 camadas de parallax
+    // ================================================================
 
+    function drawBG() {
+        var sc = S.scroll;
+
+        // Ceu
+        var skyG = ctx.createLinearGradient(0, 0, 0, GY * 0.9);
+        skyG.addColorStop(0, C.SKY_TOP);
+        skyG.addColorStop(1, C.SKY_BOT);
+        ctx.fillStyle = skyG;
+        ctx.fillRect(0, 0, W, GY + 5);
+
+        // Nuvens (parallax 0.05)
+        drawClouds(sc * 0.05);
+
+        // Colinas distantes azuladas (parallax 0.15)
+        drawHills(sc * 0.15, C.HILL_FAR, GY * 0.45, 170, W * 0.65);
+
+        // Colinas medias verdes (parallax 0.30)
+        drawHills(sc * 0.30, C.HILL_MID, GY * 0.58, 130, W * 0.48);
+
+        // Colinas proximas (parallax 0.55)
+        drawHills(sc * 0.55, C.HILL_NEAR, GY * 0.70, 95, W * 0.38);
+
+        // Tabuleiro de xadrez — parede do cliff (parallax 0.75)
+        drawCheckerboard(sc * 0.75);
+
+        // Chao
+        var cliffBot = GY + 4 * 20;
+        ctx.fillStyle = C.GROUND_G;
+        ctx.fillRect(0, cliffBot, W, 15);
+        ctx.fillStyle = C.GROUND_DG;
+        ctx.fillRect(0, cliffBot + 15, W, 10);
+        ctx.fillStyle = C.GROUND_B;
+        ctx.fillRect(0, cliffBot + 25, W, H - cliffBot - 25);
+    }
+
+    function drawClouds(off) {
+        var defs = [
+            { rx: 0.10, ry: 0.08, w: 95,  h: 30 },
+            { rx: 0.38, ry: 0.05, w: 130, h: 38 },
+            { rx: 0.68, ry: 0.09, w: 88,  h: 26 },
+            { rx: 0.88, ry: 0.06, w: 105, h: 33 },
+            { rx: 1.20, ry: 0.11, w: 72,  h: 22 },
+        ];
+        ctx.fillStyle = C.CLOUD;
+        defs.forEach(function (d) {
+            var cx = ((d.rx * W - off) % (W * 1.4) + W * 1.4) % (W * 1.4) - W * 0.2;
+            cloud(cx, d.ry * H, d.w, d.h);
+        });
+    }
+
+    function cloud(x, y, w, h) {
+        ctx.beginPath();
+        ctx.arc(x,            y,          h * 0.55, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.22, y - h * 0.2, h * 0.45, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.46, y - h * 0.1, h * 0.50, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.72, y - h * 0.05, h * 0.42, 0, Math.PI * 2);
+        ctx.arc(x + w,        y,          h * 0.40, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawHills(off, color, centerY, r, period) {
+        ctx.fillStyle = color;
+        for (var i = -1; i < 5; i++) {
+            var hx = i * period - (off % period) + period * 0.5;
+            ctx.beginPath();
+            ctx.arc(hx, centerY + r * 0.3, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function drawCheckerboard(off) {
+        var sz = 20, rows = 4;
+        var colOff = off % (sz * 2);
+        for (var row = 0; row < rows; row++) {
+            for (var col = -2; col < Math.ceil(W / sz) + 3; col++) {
+                var cx = col * sz - colOff;
+                var cy = GY + row * sz;
+                ctx.fillStyle = (col + row) % 2 === 0 ? C.CHECK_L : C.CHECK_D;
+                ctx.fillRect(cx, cy, sz, sz);
+            }
+        }
+    }
+
+    // ================================================================
+    // SONIC — desenho procedural (proporcoes classicas 16-bit)
+    // ================================================================
+    //
+    // Proporcoes (pes em y=0):
+    //   Sapato topo:   y=-8    Body centro:   y=-20   Head centro:   y=-38
+    //   Espinho topo:  y=-60   Largura total: ~50px
+    //
+    // Cores fieis ao sprite original Genesis
+
+    function drawSonic() {
+        ctx.save();
+        ctx.translate(S.x, S.y);
+
+        // Piscar quando invencivel
+        if (S.invincible > 0 && Math.floor(S.t / 4) % 2 === 1) ctx.globalAlpha = 0.32;
+
+        switch (S.phase) {
+            case 'spindash': sonicSD();      break;
+            case 'jump':
+            case 'roll':     sonicSpin();    break;
+            case 'hurt':     sonicHurt();    break;
+            default:         sonicRun();     break;
+        }
+
+        ctx.restore();
+    }
+
+    // ---- Pose de corrida ----
+    function sonicRun() {
+        // Angulo de inclinacao baseado na velocidade do scroll
+        var sp = S.worldSpeed + (S.sdBoostFrames > 0 ? S.sdBoostVal * (S.sdBoostFrames / PHY.SD_BOOST_DURATION) : 0);
+        var lean = Math.min(sp / PHY.WORLD_MAX * 0.32, 0.28);
+        ctx.rotate(lean);
+
+        // Ciclo de pernas
+        var cyc = (S.t * (0.13 + sp * 0.025)) % (Math.PI * 2);
+        var la  = Math.sin(cyc) * 13;       // perna A
+        var lb  = -Math.sin(cyc) * 13;      // perna B
+        var armSwing = Math.sin(cyc + Math.PI) * 9;
+
+        // Sombra
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.beginPath(); ctx.ellipse(2, 1, 19, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+        // Pernas
+        leg(ctx, -4 + la * 0.28, -8, la * 0.025);
+        leg(ctx,  5 + lb * 0.28, -8, lb * 0.025);
+
+        // Sapatos
+        shoe(ctx, -5 + la * 0.52, 0, la * 0.018);
+        shoe(ctx,  6 + lb * 0.52, 0, lb * 0.018);
+
+        // Corpo
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.ellipse(1, -19, 13, 16, 0.05, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.ellipse(0, -20, 12, 15, 0.05, 0, Math.PI * 2); ctx.fill();
+
+        // Barriga
+        ctx.fillStyle = C.BELLY;
+        ctx.beginPath(); ctx.ellipse(4, -17, 7, 10, 0.12, 0, Math.PI * 2); ctx.fill();
+
+        // Braco (visivel, swing)
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.ellipse(4 + armSwing * 0.28, -21, 5, 9, armSwing * 0.04, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.ellipse(3 + armSwing * 0.28, -22, 4.5, 8, armSwing * 0.04, 0, Math.PI * 2); ctx.fill();
+
+        // Luva
+        ctx.fillStyle = C.GLOVE;
+        ctx.beginPath(); ctx.arc(4 + armSwing * 0.52, -22 + 9, 5.5, 0, Math.PI * 2); ctx.fill();
+
+        // Cabeca (por cima do corpo)
+        sonicHead(false);
+    }
+
+    // ---- Pose em bola giratoria (pulo / roll) ----
+    function sonicSpin() {
+        var sp = S.worldSpeed + (S.sdBoostFrames > 0 ? S.sdBoostVal * (S.sdBoostFrames / PHY.SD_BOOST_DURATION) : 0);
+        var spinRate = 0.22 + sp * 0.03;
+        ctx.save();
+        ctx.rotate((S.t * spinRate) % (Math.PI * 2));
+
+        // Bola
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.arc(0, -18, 23, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.arc(0, -18, 22, 0, Math.PI * 2); ctx.fill();
+
+        // Barriga visivel
+        ctx.fillStyle = C.BELLY;
+        ctx.beginPath(); ctx.ellipse(-3, -16, 12, 9, -0.25, 0, Math.PI * 2); ctx.fill();
+
+        // Espinho principal
+        spike(ctx, -15, -30, -2.25, 20, 8);
+
+        // Olho (pequeno, visivel)
+        ctx.fillStyle = C.EYE_W;
+        ctx.beginPath(); ctx.ellipse(12, -18, 7, 6, -0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.EYE_G;
+        ctx.beginPath(); ctx.arc(13, -18, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.EYE_P;
+        ctx.beginPath(); ctx.arc(14, -18, 2.2, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+    }
+
+    // ---- Pose spin dash (agachado carregando) ----
+    function sonicSD() {
+        var vib = S.sdLevel > 0 ? (Math.random() - 0.5) * S.sdLevel * 1.8 : 0;
+        ctx.save(); ctx.translate(vib, 0);
+
+        // Sapatos (lado a lado, agachado)
+        shoe(ctx, -8, 0, 0);
+        shoe(ctx,  7, 0, 0);
+
+        // Corpo agachado
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.arc(0, -19, 21, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.arc(0, -20, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BELLY;
+        ctx.beginPath(); ctx.ellipse(4, -18, 10, 8, 0.1, 0, Math.PI * 2); ctx.fill();
+
+        // Espinhos aparecem
+        spike(ctx, -12, -32, -2.28, 24, 9);
+        spike(ctx, -17, -24, -2.05, 20, 8);
+
+        // Olho determinado
+        ctx.fillStyle = C.EYE_W;
+        ctx.beginPath(); ctx.ellipse(12, -26, 7, 6, -0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.EYE_G;
+        ctx.beginPath(); ctx.arc(13, -26, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.EYE_P;
+        ctx.beginPath(); ctx.arc(14, -26, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = C.BLUE_D; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(6, -31); ctx.lineTo(18, -30); ctx.stroke();
+
+        // Estrelas de carga girando
+        for (var i = 0; i < S.sdLevel; i++) {
+            var ang = (i / PHY.SD_MAX_LEVEL) * Math.PI * 2 + S.t * 0.16;
+            var rr = 30 + S.sdLevel * 1.8;
+            ctx.fillStyle = i % 2 === 0 ? '#FFE040' : '#FF8822';
+            ctx.beginPath();
+            ctx.arc(Math.cos(ang) * rr, -20 + Math.sin(ang) * rr, 3 + S.sdLevel * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // ---- Pose de dano ----
+    function sonicHurt() {
+        ctx.save(); ctx.rotate(S.t * 0.18);
+
+        ctx.fillStyle = C.BLUE_D; ctx.beginPath(); ctx.arc(0, -20, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;   ctx.beginPath(); ctx.arc(0, -20, 19, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BELLY;  ctx.beginPath(); ctx.ellipse(3, -19, 9, 7, 0.1, 0, Math.PI * 2); ctx.fill();
+
+        // Bracos abertos
+        ctx.strokeStyle = C.BLUE_D; ctx.lineWidth = 8; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-18, -22); ctx.lineTo(-29, -12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(18, -22);  ctx.lineTo(29, -12);  ctx.stroke();
+        ctx.fillStyle = C.GLOVE;
+        ctx.beginPath(); ctx.arc(-29, -12, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(29, -12, 6, 0, Math.PI * 2); ctx.fill();
+
+        sonicHead(true);
+        ctx.restore();
+    }
+
+    // ---- Cabeca do Sonic (proporcoes classicas) ----
+    // Cabeca centralizada em (3, -38) relativo aos pes
+    function sonicHead(isHurt) {
+        var hx = 3, hy = -38;
+
+        // Espinhos (desenhados ANTES da cabeca para ficarem atras)
+        spike(ctx, hx - 3,  hy - 10, -2.40, 26, 10);
+        spike(ctx, hx - 10, hy - 3,  -2.08, 22, 9);
+        spike(ctx, hx - 15, hy + 6,  -1.82, 18, 8);
+
+        // Cabeca oval
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.ellipse(hx + 1, hy + 1, 21, 20, -0.08, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.ellipse(hx, hy, 20, 19, -0.08, 0, Math.PI * 2); ctx.fill();
+
+        // Focinho (muzzle) — area mais clara no lado direito/frente
+        ctx.fillStyle = C.MUZZLE;
+        ctx.beginPath(); ctx.ellipse(hx + 12, hy + 6, 11, 9, 0.18, 0, Math.PI * 2); ctx.fill();
+
+        // Nariz
+        ctx.fillStyle = '#0A0A0A';
+        ctx.beginPath(); ctx.arc(hx + 20, hy + 2, 2.5, 0, Math.PI * 2); ctx.fill();
+
+        if (!isHurt) {
+            // Olho — elemento mais iconico do Sonic
+            ctx.fillStyle = C.EYE_W;
+            ctx.beginPath(); ctx.ellipse(hx + 8, hy - 6, 9, 8, -0.15, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = C.EYE_G;
+            ctx.beginPath(); ctx.arc(hx + 10, hy - 5, 5.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = C.EYE_P;
+            ctx.beginPath(); ctx.arc(hx + 11, hy - 5, 3, 0, Math.PI * 2); ctx.fill();
+            // Brilho
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath(); ctx.arc(hx + 13, hy - 7, 2, 0, Math.PI * 2); ctx.fill();
+            // Sobrancelha determinada (inclinada para o centro)
+            ctx.strokeStyle = C.BLUE_D; ctx.lineWidth = 3; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(hx + 1, hy - 13); ctx.lineTo(hx + 17, hy - 11); ctx.stroke();
+            // Sorriso
+            ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(hx + 14, hy + 7, 5, 0.15, Math.PI * 0.85); ctx.stroke();
+        } else {
+            // Olhos em X (tomou dano)
+            ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(hx + 3, hy - 10); ctx.lineTo(hx + 13, hy - 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(hx + 13, hy - 10); ctx.lineTo(hx + 3, hy - 2); ctx.stroke();
+        }
+
+        // Orelha (pequeno triangulo no topo esq.)
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath();
+        ctx.moveTo(hx - 8, hy - 16);
+        ctx.lineTo(hx - 14, hy - 25);
+        ctx.lineTo(hx - 1, hy - 18);
+        ctx.closePath(); ctx.fill();
+    }
+
+    // ---- Helpers de desenho ----
+    function spike(ctx, bx, by, angle, length, width) {
+        ctx.save(); ctx.translate(bx, by); ctx.rotate(angle);
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.moveTo(-width / 2 + 1, 1); ctx.lineTo(0, -length); ctx.lineTo(width / 2 + 1, 1); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.moveTo(-width / 2, 0); ctx.lineTo(0, -length); ctx.lineTo(width / 2, 0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+
+    function leg(ctx, x, y, angle) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+        ctx.fillStyle = C.BLUE_D;
+        ctx.beginPath(); ctx.ellipse(0, 0, 5, 9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = C.BLUE;
+        ctx.beginPath(); ctx.ellipse(-0.5, -0.5, 4, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    function shoe(ctx, x, y, angle) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle || 0);
+        // Sola preta
+        ctx.fillStyle = '#111111';
+        ctx.beginPath(); ctx.ellipse(0, 1, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+        // Tenis vermelho
+        ctx.fillStyle = C.SHOE;
+        ctx.beginPath(); ctx.ellipse(0, -1, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+        // Faixa branca
+        ctx.fillStyle = C.SHOE_W;
+        ctx.fillRect(-12, -2, 24, 3);
+        // Fivela dourada
+        ctx.fillStyle = C.BUCKLE;
+        ctx.beginPath(); ctx.arc(0, -0.5, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1A1A1A';
+        ctx.beginPath(); ctx.arc(0, -0.5, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    // ================================================================
+    // ANEL
+    // ================================================================
+    function drawRing(x, y, ph) {
+        ctx.save(); ctx.translate(x, y);
+        var scX = Math.abs(Math.cos((S.t + ph) * 0.07)) * 0.55 + 0.45;
+        ctx.scale(scX, 1);
+        ctx.strokeStyle = C.RING;  ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = C.RING_L; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(-2, -2, 5, Math.PI * 1.3, Math.PI * 2.1); ctx.stroke();
+        ctx.fillStyle = '#FFFACC';
+        ctx.beginPath(); ctx.arc(-4, -5, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+    // ================================================================
+    // OBSTACULOS
+    // ================================================================
+    function drawObstacle(o) {
+        ctx.save(); ctx.translate(o.x, o.y);
+        switch (o.type) {
+            case 'spike':    drawSpikes();        break;
+            case 'crabmeat': drawCrabmeat(o.t);  break;
+            case 'motobug':  drawMotobug(o.t);   break;
+            case 'spring':   drawSpring(o);       break;
+        }
+        ctx.restore();
+    }
+
+    function drawSpikes() {
+        ctx.fillStyle = '#8090A8';
+        for (var i = -1; i <= 1; i++) {
+            var bx = i * 20;
+            ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx + 8, -34); ctx.lineTo(bx + 16, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#B8C8D8';
+            ctx.beginPath(); ctx.moveTo(bx + 5, 0); ctx.lineTo(bx + 8, -28); ctx.lineTo(bx + 7, 0); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#8090A8';
+        }
+        ctx.fillStyle = '#606878'; ctx.fillRect(-24, -5, 64, 6);
+    }
+
+    // Crabmeat — caranguejo classico de Sonic 1
+    function drawCrabmeat(t) {
+        var bob = Math.sin(t * 0.12) * 4;
+
+        // Shell
+        ctx.fillStyle = '#B81818'; ctx.beginPath(); ctx.ellipse(0, -24 + bob, 24, 15, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#D83030'; ctx.beginPath(); ctx.ellipse(-1, -26 + bob, 16, 10, -0.1, 0, Math.PI * 2); ctx.fill();
+        // Linha do casco
+        ctx.strokeStyle = '#901010'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-20, -24 + bob); ctx.quadraticCurveTo(0, -14 + bob, 20, -24 + bob); ctx.stroke();
+
+        // Bracos / Garras
+        ctx.strokeStyle = '#B81818'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-20, -22 + bob); ctx.lineTo(-32, -22 + bob); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(20, -22 + bob);  ctx.lineTo(32, -22 + bob);  ctx.stroke();
+        // Garra esq
+        ctx.fillStyle = '#B81818';
+        ctx.beginPath(); ctx.ellipse(-34, -22 + bob, 9, 7, 0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-40, -17 + bob); ctx.lineTo(-44, -11 + bob); ctx.lineTo(-38, -14 + bob); ctx.closePath(); ctx.fill();
+        // Garra dir
+        ctx.beginPath(); ctx.ellipse(34, -22 + bob, 9, 7, -0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(40, -17 + bob); ctx.lineTo(44, -11 + bob); ctx.lineTo(38, -14 + bob); ctx.closePath(); ctx.fill();
+
+        // Olhos em hastes
+        ctx.strokeStyle = '#C03030'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-9, -34 + bob); ctx.lineTo(-9, -44 + bob); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(9, -34 + bob);  ctx.lineTo(9, -44 + bob);  ctx.stroke();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(-9, -45 + bob, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(9,  -45 + bob, 5.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0A0A0A';
+        ctx.beginPath(); ctx.arc(-8, -45 + bob, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(10, -45 + bob, 3, 0, Math.PI * 2); ctx.fill();
+
+        // Pernas
+        ctx.strokeStyle = '#901010'; ctx.lineWidth = 3;
+        for (var l = -2; l <= 2; l++) {
+            var lp = Math.sin(t * 0.14 + l) * 5;
+            ctx.beginPath(); ctx.moveTo(l * 8, -10 + bob); ctx.lineTo(l * 9 + lp, 0); ctx.stroke();
+        }
+    }
+
+    // Motobug — escaravelho rolante de Sonic 1
+    function drawMotobug(t) {
+        var spin = t * 0.28;
+        // Roda
+        ctx.fillStyle = '#222222';
+        ctx.beginPath(); ctx.arc(0, -14, 17, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#444444'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, -14, 15, 0, Math.PI * 2); ctx.stroke();
+        // Raios
+        ctx.save(); ctx.translate(0, -14); ctx.rotate(spin);
+        ctx.strokeStyle = '#555555'; ctx.lineWidth = 2;
+        for (var r = 0; r < 4; r++) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(r * Math.PI / 2) * 15, Math.sin(r * Math.PI / 2) * 15);
+            ctx.stroke();
+        }
+        ctx.restore();
+        // Centro da roda
+        ctx.fillStyle = '#888'; ctx.beginPath(); ctx.arc(0, -14, 4, 0, Math.PI * 2); ctx.fill();
+
+        // Cuerpo vermelho em cima
+        ctx.fillStyle = '#C02828';
+        ctx.beginPath(); ctx.ellipse(0, -29, 13, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#E03838';
+        ctx.beginPath(); ctx.ellipse(-1, -30, 9, 7, -0.1, 0, Math.PI * 2); ctx.fill();
+
+        // Antena
+        ctx.strokeStyle = '#C02828'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-2, -37); ctx.lineTo(-4, -48); ctx.stroke();
+        ctx.fillStyle = '#F03838'; ctx.beginPath(); ctx.arc(-4, -49, 3.5, 0, Math.PI * 2); ctx.fill();
+
+        // Olhos
+        ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(-4, -31, 4, 3.5, -0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();            ctx.ellipse(5, -31, 4, 3.5, 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0A0A0A'; ctx.beginPath(); ctx.arc(-4, -31, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();           ctx.arc(5, -31, 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Mola (Spring) — vermelho e amarelo como em GHZ
+    function drawSpring(o) {
+        var comp = o.compressed || 0;
+        var h = 22 - comp * 14;
+        // Base cinza
+        ctx.fillStyle = '#909090'; ctx.fillRect(-15, -4, 30, 5);
+        // Espirais
+        ctx.strokeStyle = '#E02018'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        var coils = 4;
+        for (var c = 0; c < coils; c++) {
+            var y1 = -4 - (c / coils) * h;
+            var y2 = -4 - ((c + 0.5) / coils) * h;
+            var y3 = -4 - ((c + 1) / coils) * h;
+            ctx.beginPath(); ctx.moveTo(-12, y1); ctx.lineTo(12, y2); ctx.lineTo(-12, y3); ctx.stroke();
+        }
+        // Plataforma topo amarela
+        ctx.fillStyle = '#F8D820'; ctx.fillRect(-15, -6 - h, 30, 6);
+        // Estrela no centro
+        ctx.fillStyle = '#E08010'; ctx.beginPath(); ctx.arc(0, -9 - h, 4.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ================================================================
+    // HUD
+    // ================================================================
+    function drawHUD() {
+        // Fundo semi-transparente para o painel de aneis
+        ctx.fillStyle = 'rgba(0,0,0,0.48)';
+        ctx.beginPath();
+        ctx.arc(W - 110, 38, 30, Math.PI * 0.5, Math.PI * 2.5);
+        ctx.fill();
+        ctx.fillRect(W - 110, 8, 100, 60);
+        ctx.beginPath();
+        ctx.arc(W - 10, 38, 30, Math.PI * 1.5, Math.PI * 0.5);
+        ctx.fill();
+
+        // Icone anel
+        ctx.strokeStyle = C.RING; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.arc(W - 98, 38, 10, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = C.RING_L; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(W - 100, 36, 5, Math.PI * 1.3, Math.PI * 2.1); ctx.stroke();
+
+        // Contador de aneis
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 22px "Russo One", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(S.rings, W - 80, 45);
+
+        // Score (menor, abaixo)
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = '12px "Russo One", sans-serif';
+        ctx.fillText(S.score, W - 80, 60);
+
+        // Indicador de velocidade (pontinhos azuis, canto esq)
+        var pct = (S.worldSpeed - PHY.WORLD_INIT) / (PHY.WORLD_MAX - PHY.WORLD_INIT);
+        var dots = Math.round(pct * 5);
+        for (var i = 0; i < 5; i++) {
+            ctx.fillStyle = i < dots ? '#38BDF8' : 'rgba(255,255,255,0.18)';
+            ctx.beginPath(); ctx.arc(18 + i * 15, 30, 5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Barra de SD (se estiver carregando)
+        if (S.phase === 'spindash' && S.sdLevel > 0) {
+            var barW = 120, barX = W / 2 - barW / 2;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(barX - 4, H - 60, barW + 8, 20);
+            ctx.fillStyle = '#F8B800';
+            ctx.fillRect(barX, H - 58, barW * (S.sdLevel / PHY.SD_MAX_LEVEL), 16);
+            ctx.strokeStyle = '#FFE040'; ctx.lineWidth = 1.5;
+            ctx.strokeRect(barX, H - 58, barW, 16);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px "Russo One", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('SPIN DASH', W / 2, H - 65);
+        }
+    }
+
+    function drawCelebration() {
+        var a = Math.min(1, S.celebrating / 25);
+        ctx.save(); ctx.globalAlpha = a;
+        ctx.fillStyle = 'rgba(0,0,0,0.52)';
+        ctx.fillRect(0, H / 2 - 62, W, 68);
+        ctx.fillStyle = '#F8B800';
+        ctx.font = 'bold clamp(20px,6vw,34px) "Russo One", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(S.rings + ' aneis!', W / 2, H / 2 - 18);
+        ctx.restore();
+    }
+
+    // ================================================================
+    // LOOP PRINCIPAL
+    // ================================================================
     function gameLoop() {
         update();
         draw();
         animFrame = requestAnimationFrame(gameLoop);
     }
 
-    // ---- Input ----
-
-    function jump() {
-        if (state.onGround) {
-            state.vy = CONF.JUMP_VEL;
-            state.onGround = false;
-            ensureAC();
-            playJumpSound();
-        }
-    }
-
+    // ================================================================
+    // INPUT
+    // ================================================================
     function setupInput() {
-        _jumpHandler = function (e) {
+        // Teclado
+        _kh = function (e) {
+            if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                e.preventDefault(); inputJump = true;
+            }
+            if (e.key === 'z' || e.key === 'Z' || e.key === 'ArrowDown' || e.key === 's') {
+                e.preventDefault(); inputSD = true;
+            }
+            if (e.key === 'Escape') window.SonicGame.fechar();
+        };
+        var _ku = function (e) {
+            if (e.key === 'z' || e.key === 'Z' || e.key === 'ArrowDown' || e.key === 's') inputSD = false;
+        };
+        window.addEventListener('keydown', _kh);
+        window.addEventListener('keyup',   _ku);
+        _kh._up = _ku; // salvar referencia para remover
+
+        // Touch: metade direita = pulo | botao SD = spin dash
+        _th = function (e) {
             e.preventDefault();
-            jump();
-        };
-        canvas.addEventListener('click',      _jumpHandler);
-        canvas.addEventListener('touchstart', _jumpHandler, { passive: false });
-
-        _keyHandler = function (e) {
-            if (e.key === ' ' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                jump();
-            }
-            if (e.key === 'Escape') {
-                window.SonicGame.fechar();
+            for (var i = 0; i < e.changedTouches.length; i++) {
+                var tx = e.changedTouches[i].clientX;
+                if (tx > W * 0.5) inputJump = true;
             }
         };
-        window.addEventListener('keydown', _keyHandler);
+        canvas.addEventListener('touchstart', _th, { passive: false });
+        canvas.addEventListener('click', function (e) {
+            if (e.clientX > W * 0.5) inputJump = true;
+        });
 
-        _resizeHandler = function () {
-            W = window.innerWidth;
-            H = window.innerHeight;
-            GROUND_Y = H * 0.58;
-            canvas.width  = W;
-            canvas.height = H;
-            state.x = W * 0.2;
-            if (state.y > GROUND_Y - 32) state.y = GROUND_Y - 32;
+        // Resize
+        _rh = function () {
+            W = window.innerWidth; H = window.innerHeight;
+            GY = H * 0.62;
+            canvas.width = W; canvas.height = H;
+            S.x = W * 0.22;
+            if (S.y > GY) S.y = GY;
         };
-        window.addEventListener('resize', _resizeHandler);
+        window.addEventListener('resize', _rh);
     }
 
     function removeInput() {
-        if (_jumpHandler && canvas) {
-            canvas.removeEventListener('click',      _jumpHandler);
-            canvas.removeEventListener('touchstart', _jumpHandler);
-        }
-        if (_keyHandler)   window.removeEventListener('keydown', _keyHandler);
-        if (_resizeHandler) window.removeEventListener('resize',  _resizeHandler);
-        _jumpHandler = _keyHandler = _resizeHandler = null;
+        if (_kh) { window.removeEventListener('keydown', _kh); if (_kh._up) window.removeEventListener('keyup', _kh._up); _kh = null; }
+        if (_th && canvas) { canvas.removeEventListener('touchstart', _th); _th = null; }
+        if (_rh) { window.removeEventListener('resize', _rh); _rh = null; }
+        if (sdBtnEl) { sdBtnEl.remove(); sdBtnEl = null; }
     }
 
-    // ---- API publica ----
+    // ---- Botao Spin Dash (mobile) ----
+    function createSDBtn() {
+        sdBtnEl = document.createElement('button');
+        sdBtnEl.style.cssText = [
+            'position:fixed', 'bottom:28px', 'left:28px', 'z-index:9100',
+            'width:72px', 'height:72px', 'border-radius:50%',
+            'background:linear-gradient(135deg,#C02020,#801010)',
+            'border:3px solid #FFE040',
+            'color:#FFE040', 'font-family:"Russo One",sans-serif',
+            'font-size:11px', 'cursor:pointer',
+            'display:flex', 'flex-direction:column',
+            'align-items:center', 'justify-content:center',
+            'box-shadow:0 4px 16px rgba(0,0,0,0.5)',
+            '-webkit-tap-highlight-color:transparent',
+            'user-select:none', '-webkit-user-select:none',
+        ].join(';');
+        sdBtnEl.innerHTML = '<span style="font-size:22px;">&#9654;</span><span style="font-size:9px;margin-top:2px;">SPIN</span>';
+        sdBtnEl.addEventListener('touchstart', function (e) { e.preventDefault(); inputSD = true; initAC(); }, { passive: false });
+        sdBtnEl.addEventListener('touchend',   function (e) { e.preventDefault(); inputSD = false; }, { passive: false });
+        sdBtnEl.addEventListener('mousedown',  function () { inputSD = true;  initAC(); });
+        sdBtnEl.addEventListener('mouseup',    function () { inputSD = false; });
+        overlay.appendChild(sdBtnEl);
+    }
 
+    // ================================================================
+    // API PUBLICA
+    // ================================================================
     window.SonicGame = {
         abrir: function () {
-            // Overlay fullscreen
             overlay = document.createElement('div');
             overlay.id = 'sonic-overlay';
             overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#000;';
 
             canvas = document.createElement('canvas');
-            W = window.innerWidth;
-            H = window.innerHeight;
-            canvas.width  = W;
-            canvas.height = H;
+            W = window.innerWidth; H = window.innerHeight;
+            canvas.width = W; canvas.height = H;
             canvas.style.cssText = 'display:block;touch-action:none;';
             overlay.appendChild(canvas);
 
@@ -836,7 +1033,7 @@
             var backBtn = document.createElement('button');
             backBtn.style.cssText = [
                 'position:fixed', 'top:16px', 'left:16px', 'z-index:9100',
-                'background:rgba(0,0,0,0.5)', 'border:1px solid rgba(255,255,255,0.2)',
+                'background:rgba(0,0,0,0.55)', 'border:1px solid rgba(255,255,255,0.22)',
                 'color:#fff', 'border-radius:50%', 'width:44px', 'height:44px',
                 'cursor:pointer', 'display:flex', 'align-items:center', 'justify-content:center',
                 '-webkit-tap-highlight-color:transparent',
@@ -846,15 +1043,12 @@
             overlay.appendChild(backBtn);
 
             document.body.appendChild(overlay);
-
             ctx = canvas.getContext('2d');
 
-            // Audio
             try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
 
-            // Estado
             initState();
-
+            createSDBtn();
             setupInput();
             gameLoop();
         },
@@ -864,7 +1058,7 @@
             removeInput();
             if (ac) { ac.close().catch(function () {}); ac = null; }
             if (overlay) { overlay.remove(); overlay = null; canvas = null; ctx = null; }
-        }
+        },
     };
 
 })();
