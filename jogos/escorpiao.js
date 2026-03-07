@@ -138,6 +138,7 @@
                 'text-shadow:0 0 20px rgba(253,224,71,0.5)',
                 'pointer-events:none', 'user-select:none',
                 'transition:transform 0.1s',
+                'z-index:5',
             ].join(';');
             scoreEl.textContent = '0';
             this.score = 0;
@@ -397,6 +398,7 @@
 
         // ---- Passou de fase ----
         _passarDeFase() {
+            if (this._bloqueado) return; // guard contra double-fire
             this._bloqueado = true;
             this.comidas    = [];
 
@@ -425,6 +427,7 @@
 
         // ---- Ficou pequenininho ----
         _pequenino() {
+            if (this._bloqueado) return; // guard contra double-fire
             this._bloqueado = true;
             this.comidas    = [];
             this._mostrarMensagem('Pequenininho!', '#60a5fa');
