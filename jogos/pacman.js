@@ -1,5 +1,5 @@
 // =====================================================================
-// pacman.js — Jogo Pac-Man Standalone v1.0
+// pacman.js — Jogo Pac-Man Standalone v1.1
 // =====================================================================
 // Pac-Man simplificado para criancas
 // Controles: toque/mouse para direcionar, ESC para sair
@@ -99,6 +99,27 @@
                 setTimeout(function () { self._tocar(f, 0.08, 'sawtooth', 0.1); }, d);
             })(freq, i * 60);
         }
+    };
+
+    SomPacman.prototype.morte = function () {
+        // Som descendente triste
+        var self = this;
+        var notas = [440, 392, 349, 330, 294, 262, 220, 196];
+        for (var i = 0; i < notas.length; i++) {
+            (function (freq, delay) {
+                setTimeout(function () {
+                    self._tocar(freq, 0.12, 'sine', 0.15);
+                }, delay);
+            })(notas[i], i * 100);
+        }
+    };
+
+    SomPacman.prototype.fruta = function () {
+        // Som alegre de pegar fruta
+        this._tocar(523, 0.08, 'square', 0.1);
+        var self = this;
+        setTimeout(function () { self._tocar(659, 0.08, 'square', 0.1); }, 80);
+        setTimeout(function () { self._tocar(784, 0.12, 'square', 0.12); }, 160);
     };
 
     SomPacman.prototype.fechar = function () {
@@ -415,7 +436,7 @@
                     this.mapa[gy][gx] = 0;
                     this.score += 50;
                     this.pelletCount--;
-                    this.som.power();
+                    this.som.fruta();
                     this._ativarPower();
                 }
             }
@@ -446,6 +467,7 @@
                         g.scared = false;
                     } else if (!g.scared) {
                         // Respawn Pac-Man (sem game over - e para criancas!)
+                        this.som.morte();
                         pac.x = 9 * cell + cell / 2;
                         pac.y = 15 * cell + cell / 2;
                         pac.dir = { x: 0, y: 0 };
@@ -617,16 +639,63 @@
                         ctx.arc(px + cell / 2, py + cell / 2, 3, 0, Math.PI * 2);
                         ctx.fill();
                     } else if (tile === 3) {
-                        // Power pellet (pisca)
-                        if (Math.floor(Date.now() / 200) % 2 === 0) {
-                            ctx.fillStyle = CONF.POWER;
-                            ctx.shadowColor = CONF.POWER;
-                            ctx.shadowBlur = 8;
+                        // Frutas (pisca suavemente)
+                        var pulse = 0.8 + 0.2 * Math.sin(Date.now() / 150);
+                        var fx = px + cell / 2;
+                        var fy = py + cell / 2;
+                        var frutaIdx = (x + y) % 4;
+                        ctx.save();
+                        ctx.translate(fx, fy);
+                        ctx.scale(pulse, pulse);
+
+                        if (frutaIdx === 0) {
+                            // Cereja
+                            ctx.fillStyle = '#ff0040';
                             ctx.beginPath();
-                            ctx.arc(px + cell / 2, py + cell / 2, 6, 0, Math.PI * 2);
+                            ctx.arc(-3, 2, 5, 0, Math.PI * 2);
+                            ctx.arc(3, 2, 5, 0, Math.PI * 2);
                             ctx.fill();
-                            ctx.shadowBlur = 0;
+                            ctx.strokeStyle = '#2a5f2a';
+                            ctx.lineWidth = 1.5;
+                            ctx.beginPath();
+                            ctx.moveTo(-3, -2);
+                            ctx.quadraticCurveTo(0, -8, 3, -2);
+                            ctx.stroke();
+                        } else if (frutaIdx === 1) {
+                            // Morango
+                            ctx.fillStyle = '#ff2255';
+                            ctx.beginPath();
+                            ctx.moveTo(0, -6);
+                            ctx.bezierCurveTo(-7, -2, -6, 6, 0, 8);
+                            ctx.bezierCurveTo(6, 6, 7, -2, 0, -6);
+                            ctx.fill();
+                            ctx.fillStyle = '#228822';
+                            ctx.beginPath();
+                            ctx.ellipse(0, -6, 4, 2, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else if (frutaIdx === 2) {
+                            // Laranja
+                            ctx.fillStyle = '#ff8800';
+                            ctx.beginPath();
+                            ctx.arc(0, 1, 7, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.fillStyle = '#228822';
+                            ctx.fillRect(-1, -7, 2, 3);
+                        } else {
+                            // Maca
+                            ctx.fillStyle = '#ff3333';
+                            ctx.beginPath();
+                            ctx.arc(-2, 1, 5, 0, Math.PI * 2);
+                            ctx.arc(2, 1, 5, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.fillStyle = '#5b3c11';
+                            ctx.fillRect(-1, -7, 2, 4);
+                            ctx.fillStyle = '#228822';
+                            ctx.beginPath();
+                            ctx.ellipse(3, -5, 3, 2, 0.5, 0, Math.PI * 2);
+                            ctx.fill();
                         }
+                        ctx.restore();
                     }
                 }
             }
