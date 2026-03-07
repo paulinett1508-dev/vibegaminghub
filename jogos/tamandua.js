@@ -652,7 +652,7 @@
             // Score display
             var scoreDiv = document.createElement('div');
             scoreDiv.id = 'tamandua-score';
-            scoreDiv.style.cssText = 'position:absolute;top:16px;right:20px;color:#2d1a00;font-family:"JetBrains Mono","Courier New",monospace;font-size:clamp(1rem,3vw,1.5rem);text-shadow:0 1px 3px rgba(255,255,255,0.5);pointer-events:none;text-align:right;';
+            scoreDiv.style.cssText = 'position:absolute;top:70px;right:20px;color:#2d1a00;font-family:"JetBrains Mono","Courier New",monospace;font-size:clamp(1rem,3vw,1.5rem);text-shadow:0 1px 3px rgba(255,255,255,0.5);pointer-events:none;text-align:right;';
             scoreDiv.innerHTML = '<div id="tamandua-lives" style="font-size:clamp(1.2rem,4vw,2rem);color:#e74c3c;letter-spacing:4px;"></div>' +
                 '<div id="tamandua-phase" style="margin-top:4px;font-size:clamp(0.7rem,2vw,1rem);color:#b8860b;font-family:Russo One,sans-serif;text-shadow:0 1px 2px rgba(255,255,255,0.6);"></div>' +
                 '<div id="tamandua-dist" style="font-size:clamp(1.2rem,4vw,2rem);font-weight:bold;margin-top:4px;">00000</div>' +
@@ -664,11 +664,13 @@
 
             // Close button
             var closeBtn = document.createElement('button');
-            closeBtn.style.cssText = 'position:absolute;top:12px;left:12px;width:64px;height:64px;border:none;background:rgba(0,0,0,0.25);color:#fff;border-radius:50%;font-size:32px;cursor:pointer;z-index:10001;display:flex;align-items:center;justify-content:center;font-family:"Material Icons";touch-action:manipulation;';
-            closeBtn.textContent = 'close';
+            closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;width:44px;height:44px;border:1px solid #1e3a5f;background:#0f172a;color:#e2e8f0;border-radius:50%;font-size:20px;cursor:pointer;z-index:10001;display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:background 0.2s,border-color 0.2s;';
+            closeBtn.innerHTML = '<span class="material-icons" style="font-size:20px;">close</span>';
+            closeBtn.addEventListener('mouseenter', function () { closeBtn.style.background = '#1e293b'; closeBtn.style.borderColor = '#38bdf8'; });
+            closeBtn.addEventListener('mouseleave', function () { closeBtn.style.background = '#0f172a'; closeBtn.style.borderColor = '#1e3a5f'; });
             closeBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                self.fechar();
+                window.fecharJoguinhos ? window.fecharJoguinhos() : self.fechar();
             });
             overlay.appendChild(closeBtn);
 
@@ -688,7 +690,7 @@
             window.addEventListener('resize', this._onResize);
 
             this._onKey = function (e) {
-                if (e.key === 'Escape') { self.fechar(); return; }
+                if (e.key === 'Escape') { window.fecharJoguinhos ? window.fecharJoguinhos() : self.fechar(); return; }
                 if (e.key === ' ' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     self._jump();
@@ -698,14 +700,14 @@
 
             this._onTouch = function (e) {
                 // Don't jump if tapping close button
-                if (e.target === closeBtn) return;
+                if (closeBtn.contains(e.target)) return;
                 e.preventDefault();
                 self._jump();
             };
             overlay.addEventListener('touchstart', this._onTouch, { passive: false });
 
             this._onClick = function (e) {
-                if (e.target === closeBtn) return;
+                if (closeBtn.contains(e.target)) return;
                 self._jump();
             };
             overlay.addEventListener('click', this._onClick);
