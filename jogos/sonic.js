@@ -950,7 +950,10 @@
             if (e.key === 'z' || e.key === 'Z' || e.key === 'ArrowDown' || e.key === 's') {
                 e.preventDefault(); inputSD = true;
             }
-            if (e.key === 'Escape') window.SonicGame.fechar();
+            if (e.key === 'Escape') {
+                if (window.fecharJoguinhos) window.fecharJoguinhos();
+                else window.SonicGame.fechar();
+            }
         };
         var _ku = function (e) {
             if (e.key === 'z' || e.key === 'Z' || e.key === 'ArrowDown' || e.key === 's') inputSD = false;
@@ -1039,7 +1042,10 @@
                 '-webkit-tap-highlight-color:transparent',
             ].join(';');
             backBtn.innerHTML = '<span class="material-icons" style="font-size:22px;">arrow_back</span>';
-            backBtn.addEventListener('click', function () { window.SonicGame.fechar(); });
+            backBtn.addEventListener('click', function () {
+                if (window.fecharJoguinhos) window.fecharJoguinhos();
+                else window.SonicGame.fechar();
+            });
             overlay.appendChild(backBtn);
 
             document.body.appendChild(overlay);
