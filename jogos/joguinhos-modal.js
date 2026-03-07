@@ -72,6 +72,67 @@
     let splashAnimFrame = null;
     let joseAnimFrame = null;
 
+    // ---- Música da Splash ----
+    var _splashAC = null;
+    var _splashMusicActive = false;
+    var _splashNoteTimer = null;
+    // Melodia pentatonica feliz [freq Hz, duração s]
+    var _MELODY = [
+        [523, 0.18], // C5
+        [659, 0.18], // E5
+        [784, 0.18], // G5
+        [880, 0.25], // A5
+        [784, 0.18], // G5
+        [659, 0.18], // E5
+        [523, 0.35], // C5 longa
+        [0,   0.15]  // pausa
+    ];
+
+    function _tocarNotaSplash(freq, dur) {
+        if (!_splashAC || _splashAC.state !== 'running') return;
+        if (freq <= 0) return;
+        var osc = _splashAC.createOscillator();
+        var gain = _splashAC.createGain();
+        osc.connect(gain);
+        gain.connect(_splashAC.destination);
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        var now = _splashAC.currentTime;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.07, now + 0.015);
+        gain.gain.setValueAtTime(0.07, now + dur * 0.72);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.95);
+        osc.start(now);
+        osc.stop(now + dur);
+    }
+
+    function _agendarNota(idx) {
+        if (!_splashMusicActive) return;
+        var note = _MELODY[idx];
+        _tocarNotaSplash(note[0], note[1]);
+        var next = (idx + 1) % _MELODY.length;
+        _splashNoteTimer = setTimeout(function () { _agendarNota(next); }, note[1] * 1000);
+    }
+
+    function iniciarMusicaSplash() {
+        _splashMusicActive = true;
+        if (!_splashAC) {
+            try { _splashAC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+        }
+        if (_splashAC.state === 'suspended') {
+            _splashAC.resume().then(function () {
+                if (_splashMusicActive && !_splashNoteTimer) _agendarNota(0);
+            });
+        } else {
+            _agendarNota(0);
+        }
+    }
+
+    function pararMusicaSplash() {
+        _splashMusicActive = false;
+        if (_splashNoteTimer) { clearTimeout(_splashNoteTimer); _splashNoteTimer = null; }
+    }
+
     // ---- Navegacao entre telas ----
 
     function mostrarTela(id) {
@@ -524,6 +585,7 @@
     function iniciarSplashAnim() {
         desenharJose();
         desenharFundoSplash();
+        iniciarMusicaSplash();
     }
 
     function pararSplashAnim() {
@@ -535,6 +597,7 @@
             cancelAnimationFrame(joseAnimFrame);
             joseAnimFrame = null;
         }
+        pararMusicaSplash();
     }
 
     // ---- Inicializacao ----
@@ -563,6 +626,19 @@
 
         // Iniciar animacoes do splash
         iniciarSplashAnim();
+
+        // Musica: resume AudioContext na primeira interacao com a splash
+        // (necessario para mobile onde AC começa suspenso)
+        var splashEl = document.getElementById('tela-splash');
+        if (splashEl) {
+            splashEl.addEventListener('pointerdown', function () {
+                if (_splashAC && _splashAC.state === 'suspended' && _splashMusicActive) {
+                    _splashAC.resume().then(function () {
+                        if (_splashMusicActive && !_splashNoteTimer) _agendarNota(0);
+                    });
+                }
+            });
+        }
     }
 
     // Exposicao global (retrocompatibilidade)
