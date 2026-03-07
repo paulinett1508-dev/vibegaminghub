@@ -1,169 +1,417 @@
 // =====================================================================
-// joguinhos-modal.js — Modal de Selecao de Jogos v1.0
+// joguinhos-modal.js — Sistema de Navegacao v2.0
 // =====================================================================
-// Extraido de SuperCartolaManagerv5 (participante-joguinhos.js)
-// Modal overlay para escolher entre os joguinhos disponiveis.
-// Depende de: penaltis.js e escorpiao.js carregados antes.
+// Gerencia 3 telas: Splash → Hub → Jogo
+// Desenha personagens animados no splash (garotinho Jose + fundo)
+// Monta grid de jogos no hub
 // =====================================================================
 
 (function () {
     'use strict';
 
-    function abrirJoguinhos() {
-        fecharJoguinhos();
-
-        const overlay = document.createElement('div');
-        overlay.id = 'joguinhos-overlay';
-        overlay.style.cssText = [
-            'position:fixed',
-            'inset:0',
-            'background:rgba(0,0,0,0.82)',
-            'z-index:9998',
-            'display:flex',
-            'align-items:center',
-            'justify-content:center',
-            'font-family:Inter,-apple-system,sans-serif',
-            'backdrop-filter:blur(5px)',
-            '-webkit-backdrop-filter:blur(5px)',
-        ].join(';');
-
-        overlay.innerHTML = `
-            <div style="
-                background:#1e293b;
-                border-radius:20px;
-                padding:28px 24px;
-                max-width:400px;
-                width:92%;
-                box-shadow:0 25px 60px rgba(0,0,0,0.72);
-                border:1px solid #334155;
-            ">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
-                    <div>
-                        <h2 style="font-family:'Russo One',sans-serif;color:#f1f5f9;font-size:1.25rem;margin:0 0 4px;">
-                            Joguinhos
-                        </h2>
-                        <p style="color:#64748b;font-size:0.78rem;margin:0;">Escolha um jogo</p>
-                    </div>
-                    <button id="jog-btn-fechar" style="
-                        background:#334155;border:none;color:#94a3b8;
-                        width:36px;height:36px;border-radius:50%;cursor:pointer;
-                        display:flex;align-items:center;justify-content:center;
-                        flex-shrink:0;transition:background 0.2s;
-                    ">
-                        <span class="material-icons" style="font-size:18px;">close</span>
-                    </button>
-                </div>
-
-                <!-- Penaltis -->
-                <button id="jog-btn-penaltis" style="
-                    width:100%;background:linear-gradient(135deg,#10b981,#059669);
-                    border:none;border-radius:14px;padding:18px 20px;
-                    cursor:pointer;text-align:left;transition:transform 0.15s;
-                    display:flex;align-items:center;gap:16px;margin-bottom:12px;
-                ">
-                    <div style="
-                        width:48px;height:48px;border-radius:12px;
-                        background:rgba(255,255,255,0.15);
-                        display:flex;align-items:center;justify-content:center;flex-shrink:0;
-                    ">
-                        <span class="material-icons" style="font-size:26px;color:white;">sports_soccer</span>
-                    </div>
-                    <div>
-                        <div style="font-family:'Russo One',sans-serif;color:white;font-size:0.95rem;margin-bottom:3px;">
-                            Penaltis
-                        </div>
-                        <div style="color:rgba(255,255,255,0.72);font-size:0.73rem;line-height:1.4;">
-                            Cobra ou defende — voce escolhe
-                        </div>
-                    </div>
-                </button>
-
-                <!-- Escorpiao -->
-                <button id="jog-btn-escorpiao" style="
-                    width:100%;background:linear-gradient(135deg,#f59e0b,#b45309);
-                    border:none;border-radius:14px;padding:18px 20px;
-                    cursor:pointer;text-align:left;transition:transform 0.15s;
-                    display:flex;align-items:center;gap:16px;
-                ">
-                    <div style="
-                        width:48px;height:48px;border-radius:12px;
-                        background:rgba(255,255,255,0.15);
-                        display:flex;align-items:center;justify-content:center;flex-shrink:0;
-                    ">
-                        <span class="material-icons" style="font-size:26px;color:white;">pest_control</span>
-                    </div>
-                    <div>
-                        <div style="font-family:'Russo One',sans-serif;color:white;font-size:0.95rem;margin-bottom:3px;">
-                            Escorpiao
-                        </div>
-                        <div style="color:rgba(255,255,255,0.72);font-size:0.73rem;line-height:1.4;">
-                            Guie o escorpiao com o mouse
-                        </div>
-                    </div>
-                </button>
-            </div>
-        `;
-
-        document.body.appendChild(overlay);
-
-        overlay.querySelector('#jog-btn-fechar').addEventListener('click', fecharJoguinhos);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) fecharJoguinhos(); });
-
-        // Penaltis
-        const btnPen = overlay.querySelector('#jog-btn-penaltis');
-        btnPen.addEventListener('click', () => {
-            fecharJoguinhos();
-            if (window.PenaltisGame) {
-                // Cria container temporario se nao existir
-                let container = document.getElementById('joguinhos-game-container');
-                if (!container) {
-                    container = document.createElement('div');
-                    container.id = 'joguinhos-game-container';
-                    container.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px;';
-
-                    // Botao fechar no container
-                    const closeBtn = document.createElement('button');
-                    closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:50%;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;';
-                    closeBtn.innerHTML = '<span class="material-icons" style="font-size:18px;">close</span>';
-                    closeBtn.addEventListener('click', () => {
-                        window.PenaltisGame.fechar();
-                        container.remove();
-                    });
-                    container.appendChild(closeBtn);
-
-                    // Inner container para o jogo
-                    const inner = document.createElement('div');
-                    inner.id = 'penaltis-inner';
-                    inner.style.cssText = 'max-width:420px;width:100%;';
-                    container.appendChild(inner);
-
-                    document.body.appendChild(container);
-                }
+    // ---- Registro de jogos ----
+    const JOGOS = [
+        {
+            id: 'penaltis',
+            nome: 'Penaltis',
+            icon: 'sports_soccer',
+            cor: 'linear-gradient(135deg,#10b981,#059669)',
+            abrir: function () {
+                if (!window.PenaltisGame) return;
+                const container = document.getElementById('jogo-container');
+                container.innerHTML = '';
+                const inner = document.createElement('div');
+                inner.id = 'penaltis-inner';
+                inner.style.cssText = 'max-width:420px;width:100%;';
+                container.appendChild(inner);
                 window.PenaltisGame.abrir('penaltis-inner');
+            },
+            fechar: function () {
+                if (window.PenaltisGame) window.PenaltisGame.fechar();
             }
-        });
-        btnPen.addEventListener('mouseenter', () => { btnPen.style.transform = 'scale(1.02)'; });
-        btnPen.addEventListener('mouseleave', () => { btnPen.style.transform = ''; });
+        },
+        {
+            id: 'escorpiao',
+            nome: 'Escorpiao',
+            icon: 'pest_control',
+            cor: 'linear-gradient(135deg,#f59e0b,#b45309)',
+            abrir: function () {
+                if (window.EscorpiaoGame) window.EscorpiaoGame.abrir();
+            },
+            fechar: function () {
+                if (window.EscorpiaoGame) window.EscorpiaoGame.fechar();
+            }
+        }
+    ];
 
-        // Escorpiao
-        const btnEsc = overlay.querySelector('#jog-btn-escorpiao');
-        btnEsc.addEventListener('click', () => {
-            fecharJoguinhos();
-            if (window.EscorpiaoGame) {
-                window.EscorpiaoGame.abrir();
-            }
+    let jogoAtual = null;
+    let splashAnimFrame = null;
+    let joseAnimFrame = null;
+
+    // ---- Navegacao entre telas ----
+
+    function mostrarTela(id) {
+        document.querySelectorAll('.tela').forEach(function (t) {
+            t.classList.add('hidden');
         });
-        btnEsc.addEventListener('mouseenter', () => { btnEsc.style.transform = 'scale(1.02)'; });
-        btnEsc.addEventListener('mouseleave', () => { btnEsc.style.transform = ''; });
+        var tela = document.getElementById(id);
+        if (tela) tela.classList.remove('hidden');
     }
 
-    function fecharJoguinhos() {
-        const el = document.getElementById('joguinhos-overlay');
-        if (el) el.remove();
+    function irParaHub() {
+        pararSplashAnim();
+        mostrarTela('tela-hub');
     }
 
-    // Exposicao global
-    window.abrirJoguinhos = abrirJoguinhos;
-    window.fecharJoguinhos = fecharJoguinhos;
+    function irParaSplash() {
+        if (jogoAtual) {
+            jogoAtual.fechar();
+            jogoAtual = null;
+        }
+        var container = document.getElementById('jogo-container');
+        if (container) container.innerHTML = '';
+        mostrarTela('tela-splash');
+        iniciarSplashAnim();
+    }
+
+    function irParaJogo(jogo) {
+        jogoAtual = jogo;
+        mostrarTela('tela-jogo');
+        // Escorpiao cria seu proprio overlay, entao esconde a tela-jogo
+        if (jogo.id === 'escorpiao') {
+            document.getElementById('tela-jogo').classList.add('hidden');
+        }
+        jogo.abrir();
+    }
+
+    function voltarDoJogo() {
+        if (jogoAtual) {
+            jogoAtual.fechar();
+            jogoAtual = null;
+        }
+        var container = document.getElementById('jogo-container');
+        if (container) container.innerHTML = '';
+        mostrarTela('tela-hub');
+    }
+
+    // ---- Montar grid do hub ----
+
+    function montarHub() {
+        var grid = document.getElementById('hub-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        JOGOS.forEach(function (jogo) {
+            var card = document.createElement('button');
+            card.className = 'hub-card';
+            card.setAttribute('aria-label', jogo.nome);
+            card.innerHTML =
+                '<div class="hub-card-icon" style="background:' + jogo.cor + ';">' +
+                    '<span class="material-icons">' + jogo.icon + '</span>' +
+                '</div>' +
+                '<div class="hub-card-name">' + jogo.nome + '</div>';
+
+            card.addEventListener('click', function () {
+                irParaJogo(jogo);
+            });
+            grid.appendChild(card);
+        });
+
+        // Card "em breve" placeholders
+        for (var i = 0; i < 2; i++) {
+            var placeholder = document.createElement('div');
+            placeholder.className = 'hub-card locked';
+            placeholder.innerHTML =
+                '<div class="hub-card-icon" style="background:rgba(255,255,255,0.05);">' +
+                    '<span class="material-icons" style="color:rgba(255,255,255,0.2);">lock</span>' +
+                '</div>' +
+                '<div class="hub-card-name" style="color:rgba(255,255,255,0.2);">Em breve</div>';
+            grid.appendChild(placeholder);
+        }
+    }
+
+    // ---- Splash: Desenhar garotinho Jose ----
+
+    function desenharJose() {
+        var canvas = document.getElementById('jose-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var W = 120, H = 120;
+        var t = 0;
+
+        function frame() {
+            t++;
+            ctx.clearRect(0, 0, W, H);
+
+            var cx = W / 2;
+            var cy = H / 2 + 4;
+            var bounce = Math.sin(t * 0.06) * 3;
+
+            // Sombra no chao
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy + 38, 22, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Corpo (camiseta azul)
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.roundRect(cx - 16, cy - 5 + bounce, 32, 28, 8);
+            ctx.fill();
+
+            // Listras da camiseta
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect(cx - 12, cy + 4 + bounce, 24, 3);
+            ctx.fillRect(cx - 12, cy + 11 + bounce, 24, 3);
+
+            // Pernas (bermuda)
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(cx - 10, cy + 22 + bounce, 8, 10);
+            ctx.fillRect(cx + 2, cy + 22 + bounce, 8, 10);
+
+            // Pes
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(cx - 12, cy + 31 + bounce, 10, 5);
+            ctx.fillRect(cx + 2, cy + 31 + bounce, 10, 5);
+
+            // Bracos (acenando)
+            var wave = Math.sin(t * 0.08) * 15;
+            // Braco esquerdo
+            ctx.save();
+            ctx.translate(cx - 16, cy + 2 + bounce);
+            ctx.rotate((-30 + wave) * Math.PI / 180);
+            ctx.fillStyle = '#fcd34d';
+            ctx.fillRect(-4, -2, 6, 20);
+            // Mao
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath();
+            ctx.arc(0, 18, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Braco direito (acena mais)
+            ctx.save();
+            ctx.translate(cx + 16, cy + 2 + bounce);
+            ctx.rotate((30 - wave * 1.5) * Math.PI / 180);
+            ctx.fillStyle = '#fcd34d';
+            ctx.fillRect(-2, -2, 6, 20);
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath();
+            ctx.arc(2, 18, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Cabeca
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath();
+            ctx.arc(cx, cy - 16 + bounce, 18, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Cabelo (castanho)
+            ctx.fillStyle = '#92400e';
+            ctx.beginPath();
+            ctx.arc(cx, cy - 22 + bounce, 18, Math.PI, Math.PI * 2);
+            ctx.fill();
+            ctx.fillRect(cx - 18, cy - 22 + bounce, 36, 6);
+            // Franja
+            ctx.beginPath();
+            ctx.arc(cx - 4, cy - 28 + bounce, 8, 0.2, Math.PI - 0.2);
+            ctx.fill();
+
+            // Olhos
+            var blink = (t % 180 < 6) ? 0.5 : 3;
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.ellipse(cx - 6, cy - 17 + bounce, 3, blink, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx + 6, cy - 17 + bounce, 3, blink, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Brilho nos olhos
+            if (blink > 1) {
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.beginPath();
+                ctx.arc(cx - 5, cy - 18 + bounce, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(cx + 7, cy - 18 + bounce, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Sorriso
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = 1.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(cx, cy - 12 + bounce, 8, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+
+            // Bochechas
+            ctx.fillStyle = 'rgba(251,113,133,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(cx - 13, cy - 11 + bounce, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx + 13, cy - 11 + bounce, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            joseAnimFrame = requestAnimationFrame(frame);
+        }
+        frame();
+    }
+
+    // ---- Splash: Fundo com personagens dos jogos ----
+
+    function desenharFundoSplash() {
+        var canvas = document.getElementById('splash-bg-canvas');
+        if (!canvas) return;
+
+        var W, H;
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W;
+            canvas.height = H;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        var ctx = canvas.getContext('2d');
+        var t = 0;
+
+        // Particulas flutuantes (bolas, estrelas)
+        var particulas = [];
+        for (var i = 0; i < 20; i++) {
+            particulas.push({
+                x: Math.random() * 1000,
+                y: Math.random() * 1000,
+                r: 2 + Math.random() * 4,
+                speed: 0.2 + Math.random() * 0.5,
+                phase: Math.random() * Math.PI * 2,
+                color: ['#818cf8', '#34d399', '#fbbf24', '#f472b6', '#38bdf8', '#fb923c'][Math.floor(Math.random() * 6)],
+                opacity: 0.15 + Math.random() * 0.25
+            });
+        }
+
+        function frame() {
+            t++;
+            ctx.clearRect(0, 0, W, H);
+
+            // Particulas de fundo
+            particulas.forEach(function (p) {
+                var px = (p.x / 1000) * W;
+                var py = (p.y / 1000) * H + Math.sin(t * 0.02 + p.phase) * 20;
+                ctx.globalAlpha = p.opacity;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(px, py, p.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Bola de futebol flutuante (canto inferior esquerdo)
+            ctx.globalAlpha = 0.12;
+            var ballX = W * 0.15;
+            var ballY = H * 0.78 + Math.sin(t * 0.03) * 10;
+            ctx.fillStyle = '#e5e7eb';
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#374151';
+            ctx.beginPath();
+            ctx.arc(ballX, ballY, 7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mini escorpiao silhueta (canto inferior direito)
+            ctx.globalAlpha = 0.1;
+            var escX = W * 0.82;
+            var escY = H * 0.75 + Math.sin(t * 0.025 + 1) * 8;
+            ctx.fillStyle = '#fbbf24';
+            // Corpo simplificado
+            for (var s = 0; s < 5; s++) {
+                var sr = 6 - s;
+                ctx.beginPath();
+                ctx.arc(escX + s * 8, escY + Math.sin(t * 0.04 + s * 0.5) * 3, sr, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Estrelinhas
+            ctx.globalAlpha = 0.08;
+            ctx.fillStyle = '#fbbf24';
+            var starPositions = [
+                { x: 0.1, y: 0.15 }, { x: 0.85, y: 0.12 }, { x: 0.5, y: 0.08 },
+                { x: 0.25, y: 0.3 }, { x: 0.75, y: 0.35 }, { x: 0.92, y: 0.5 }
+            ];
+            starPositions.forEach(function (sp, si) {
+                var sx = sp.x * W;
+                var sy = sp.y * H;
+                var twinkle = 0.5 + Math.sin(t * 0.05 + si * 1.2) * 0.5;
+                ctx.globalAlpha = 0.06 + twinkle * 0.08;
+                ctx.font = (8 + twinkle * 6) + 'px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('\u2726', sx, sy);
+            });
+
+            ctx.globalAlpha = 1;
+
+            splashAnimFrame = requestAnimationFrame(frame);
+        }
+        frame();
+    }
+
+    function iniciarSplashAnim() {
+        desenharJose();
+        desenharFundoSplash();
+    }
+
+    function pararSplashAnim() {
+        if (splashAnimFrame) {
+            cancelAnimationFrame(splashAnimFrame);
+            splashAnimFrame = null;
+        }
+        if (joseAnimFrame) {
+            cancelAnimationFrame(joseAnimFrame);
+            joseAnimFrame = null;
+        }
+    }
+
+    // ---- Inicializacao ----
+
+    function init() {
+        // Montar hub
+        montarHub();
+
+        // Botao jogar no splash
+        var btnJogar = document.getElementById('btn-jogar');
+        if (btnJogar) {
+            btnJogar.addEventListener('click', irParaHub);
+        }
+
+        // Botao voltar no hub
+        var hubBack = document.getElementById('hub-back-btn');
+        if (hubBack) {
+            hubBack.addEventListener('click', irParaSplash);
+        }
+
+        // Botao voltar do jogo
+        var jogoVoltar = document.getElementById('jogo-voltar-btn');
+        if (jogoVoltar) {
+            jogoVoltar.addEventListener('click', voltarDoJogo);
+        }
+
+        // Iniciar animacoes do splash
+        iniciarSplashAnim();
+    }
+
+    // Exposicao global (retrocompatibilidade)
+    window.abrirJoguinhos = irParaHub;
+    window.fecharJoguinhos = voltarDoJogo;
+
+    // Rodar ao carregar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 
 })();

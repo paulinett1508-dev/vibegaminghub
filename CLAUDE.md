@@ -29,33 +29,50 @@ Criancas pequenas (~2-5 anos), muitas ainda nao sabem ler.
 
 ### Estrutura de Arquivos
 ```
-index.html              # Pagina principal
+index.html              # Pagina principal (splash + hub + jogo)
 vercel.json             # Config Vercel
 jogos/
   penaltis.js           # Jogo de Penaltis (standalone)
   escorpiao.js          # Jogo Escorpiao (standalone)
-  joguinhos-modal.js    # Modal de selecao (orquestra os jogos)
+  joguinhos-modal.js    # Sistema de navegacao (splash → hub → jogo)
 assets/
   sons/                 # Futuros arquivos de audio (se necessario)
 docs/
   ORIGEM.md             # Referencia do codigo original
+.agnostic-core/         # Submodule: skills e padroes de qualidade
 ```
 
 ### Padrao de Cada Jogo
 Cada jogo e um IIFE que expoe um objeto global:
 - `window.PenaltisGame` — com metodos `abrir(container)` e `fechar()`
 - `window.EscorpiaoGame` — com metodos `abrir()` e `fechar()`
-- `window.abrirJoguinhos()` / `window.fecharJoguinhos()` — modal de selecao
 
-### Fluxo
+### Sistema de Telas (joguinhos-modal.js)
 ```
-abrirJoguinhos() → Modal de selecao
-  ├── Penaltis → PenaltisGame.abrir(container)
-  │     ├── Selecao de modo (Cobrador / Goleiro)
-  │     ├── Selecao de dificuldade (4 niveis)
-  │     └── Game loop (canvas 360x240)
-  └── Escorpiao → EscorpiaoGame.abrir()
-        └── Canvas fullscreen (mouse-driven)
+Splash (tela-splash)
+  │  Titulo "Joguinhos do Jose" + garotinho animado + fundo com personagens
+  │  Botao grande "Jogar"
+  ▼
+Hub (tela-hub)
+  │  Grid 2 colunas com cards dos jogos
+  │  Foco vertical (mobile-first)
+  ▼
+Jogo (tela-jogo)
+  │  Container fullscreen para o jogo
+  │  Botao voltar → hub
+```
+
+### Registrar Novo Jogo no Hub
+Para adicionar um jogo ao hub, adicionar entrada no array `JOGOS` em `joguinhos-modal.js`:
+```javascript
+{
+    id: 'nome-do-jogo',
+    nome: 'Nome',
+    icon: 'material_icon_name',
+    cor: 'linear-gradient(135deg, #cor1, #cor2)',
+    abrir: function() { window.NomeDoJogoGame.abrir(); },
+    fechar: function() { window.NomeDoJogoGame.fechar(); }
+}
 ```
 
 ## Coding Standards
@@ -99,10 +116,17 @@ abrirJoguinhos() → Modal de selecao
 Ao adicionar um novo jogo:
 1. Criar `jogos/nome-do-jogo.js` seguindo o padrao IIFE
 2. Expor `window.NomeDoJogoGame` com `abrir()` e `fechar()`
-3. Adicionar botao no modal (`joguinhos-modal.js`)
+3. Adicionar entrada no array `JOGOS` em `joguinhos-modal.js`
 4. Incluir `<script src="jogos/...">` na `index.html` (raiz)
 5. Atualizar `README.md` com descricao do jogo
 6. Documentar origem em `docs/ORIGEM.md` se aplicavel
+
+### Skills de Referencia (.agnostic-core)
+Consultar antes de implementar:
+- `.agnostic-core/skills/ux-ui/principios-de-interface.md` — Hierarquia visual, feedback
+- `.agnostic-core/skills/frontend/css-governance.md` — CSS tokens, anti-duplicacao
+- `.agnostic-core/skills/frontend/accessibility.md` — WCAG, teclado, contraste
+- `.agnostic-core/skills/frontend/ux-guidelines.md` — Touch targets, responsivo, estados
 
 ## Protocolo de Planejamento
 

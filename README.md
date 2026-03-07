@@ -1,4 +1,4 @@
-# Joguinhos
+# Joguinhos do Jose
 
 Mini-games para criancas, extraidos do [Super Cartola Manager](https://github.com/paulinett1508-dev/SuperCartolaManagerv5). Deploy via Vercel.
 
