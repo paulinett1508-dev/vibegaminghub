@@ -18,9 +18,9 @@
         HEAD_LERP:       0.10,
         SEG_DIST:        22,
         EAT_RADIUS:      32,
-        WANDER_INTERVAL: 200,   // frames entre wandering autonomo (~3.3s)
+        INITIAL_SEGS:    7,     // cabeca + 0 corpo + 6 cauda (so a "bolinha" inicial)
         FOOD_MARGIN:     70,    // margem minima das bordas
-        MIN_SEGS:        8,
+        MIN_SEGS:        7,     // nao encolhe abaixo do tamanho inicial
         MAX_SEGS:        40,
         GROW_AMOUNT:     3,
         SHRINK_AMOUNT:   3,
@@ -39,7 +39,7 @@
         segs:         [],
         targetX:      0,
         targetY:      0,
-        wanderTimer:  0,
+        wanderTimer:  0,   // nao usado (sem movimento autonomo)
         animFrame:    null,
         frameCount:   0,
         ctx:          null,
@@ -55,9 +55,9 @@
             const cx = window.innerWidth  / 2;
             const cy = window.innerHeight / 2;
 
-            // Inicializa segmentos empilhados verticalmente no centro
+            // Inicializa segmentos empilhados verticalmente no centro (comeca pequeno)
             this.segs = [];
-            for (let i = 0; i < 16; i++) {
+            for (let i = 0; i < CONF.INITIAL_SEGS; i++) {
                 this.segs.push({ x: cx, y: cy + i * CONF.SEG_DIST });
             }
             this.targetX     = cx;
@@ -205,28 +205,11 @@
                 }
             }
 
-            // Se tem comida, redireciona para ela quando perto do alvo atual
+            // Verifica se comeu
             if (this.comida) {
-                const distToTarget = Math.hypot(
-                    segs[0].x - this.targetX,
-                    segs[0].y - this.targetY
-                );
-                // Se chegou perto do alvo atual mas o alvo nao e a comida, redireciona
-                if (distToTarget < 30 &&
-                    (this.targetX !== this.comida.x || this.targetY !== this.comida.y)) {
-                    this.targetX = this.comida.x;
-                    this.targetY = this.comida.y;
-                }
                 this.comida.t++;
-                // Verifica se comeu
                 const d = Math.hypot(segs[0].x - this.comida.x, segs[0].y - this.comida.y);
                 if (d < CONF.EAT_RADIUS) this._comer();
-            } else {
-                // Wander autonomo quando sem comida
-                if (++this.wanderTimer >= CONF.WANDER_INTERVAL) {
-                    this._novoAlvo();
-                    this.wanderTimer = 0;
-                }
             }
 
             // Fisica das particulas
@@ -314,8 +297,6 @@
             );
 
             this.comida = { x, y, tipo, cor, t: 0 };
-            this.targetX = x;
-            this.targetY = y;
             this._somAparecer();
         },
 
