@@ -472,7 +472,7 @@
             this.comidas    = [];
 
             const motivos = {
-                missed: 'Deixou passar 3 macas!',
+                missed: 'Deixou passar 3 maçãs!',
                 score:  'Perdeu todos os pontos!',
                 body:   'Ficou pequenininho!',
             };
@@ -552,7 +552,7 @@
                 'font-family:"Russo One",sans-serif',
                 'font-size:clamp(1rem,4vw,1.6rem)',
                 'color:#fde047', 'margin-top:8px',
-            ].join(';'), `Pontuacao: ${score}`));
+            ].join(';'), `Pontuação: ${score}`));
 
             const btnWrap = document.createElement('div');
             btnWrap.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-top:16px;width:min(280px,80vw);';
