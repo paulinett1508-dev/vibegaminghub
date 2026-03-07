@@ -1,4 +1,4 @@
-# JOGUINHOS - PROJECT RULES
+# JOGUINHOS DO JOSE — PROJECT RULES
 
 ## Publico-Alvo
 
@@ -9,12 +9,14 @@ Criancas pequenas (~2-5 anos), muitas ainda nao sabem ler.
 - Priorizar comunicacao visual: icones, cores, formas, animacoes
 
 ## Tech Stack
+
 - **Runtime:** Browser (Vanilla JS, zero dependencias)
 - **Rendering:** Canvas 2D API
-- **Styling:** Inline styles + Google Fonts (Russo One, Inter, JetBrains Mono)
+- **Styling:** CSS custom properties (design tokens em `index.html`) + Google Fonts
 - **Icons:** Material Icons (via CDN)
 - **Audio:** Web Audio API (sons gerados programaticamente, zero arquivos)
 - **Deploy:** Vercel (site estatico, sem build step)
+- **Quality Framework:** agnostic-core (submodule `.agnostic-core/`)
 
 ## Deploy (Vercel)
 
@@ -25,12 +27,14 @@ Criancas pequenas (~2-5 anos), muitas ainda nao sabem ler.
 - Config em `vercel.json` (headers de cache para assets)
 - Cada push no GitHub = deploy automatico
 
+---
+
 ## Arquitetura
 
 ### Estrutura de Arquivos
 ```
 index.html              # Pagina principal (splash + hub + jogo)
-vercel.json             # Config Vercel
+vercel.json             # Config Vercel (cache headers)
 jogos/
   penaltis.js           # Jogo de Penaltis (standalone)
   escorpiao.js          # Jogo Escorpiao (standalone)
@@ -40,7 +44,7 @@ assets/
   sons/                 # Futuros arquivos de audio (se necessario)
 docs/
   ORIGEM.md             # Referencia do codigo original
-.agnostic-core/         # Submodule: skills e padroes de qualidade
+.agnostic-core/         # Submodule: framework de qualidade
 ```
 
 ### Padrao de Cada Jogo
@@ -76,6 +80,8 @@ Para adicionar um jogo ao hub, adicionar entrada no array `JOGOS` em `joguinhos-
     fechar: function() { window.NomeDoJogoGame.fechar(); }
 }
 ```
+
+---
 
 ## Coding Standards
 
@@ -122,21 +128,125 @@ Ao adicionar um novo jogo:
 4. Incluir `<script src="jogos/...">` na `index.html` (raiz)
 5. Atualizar `README.md` com descricao do jogo
 6. Documentar origem em `docs/ORIGEM.md` se aplicavel
+7. Auditar com SPARC antes de merge (ver Auditoria abaixo)
 
-### Skills de Referencia (.agnostic-core)
-Consultar antes de implementar:
-- `.agnostic-core/skills/ux-ui/principios-de-interface.md` — Hierarquia visual, feedback
-- `.agnostic-core/skills/frontend/css-governance.md` — CSS tokens, anti-duplicacao
-- `.agnostic-core/skills/frontend/accessibility.md` — WCAG, teclado, contraste
-- `.agnostic-core/skills/frontend/ux-guidelines.md` — Touch targets, responsivo, estados
+---
+
+## agnostic-core — Framework de Qualidade
+
+Submodule em `.agnostic-core/` com 41 skills, 14 agents e 4 workflows.
+Consultar **antes de implementar** mudancas significativas.
+
+### Skills Obrigatorias (consultar sempre)
+
+**Frontend & UX:**
+- `.agnostic-core/skills/frontend/html-css-audit.md` — Semantica HTML, CSS quality
+- `.agnostic-core/skills/frontend/css-governance.md` — Design tokens, anti-duplicacao, anti-Frankenstein
+- `.agnostic-core/skills/frontend/accessibility.md` — WCAG 2.1 AA: contraste, teclado, ARIA, reduced-motion
+- `.agnostic-core/skills/frontend/ux-guidelines.md` — 17 categorias: touch targets, feedback, tipografia, animacao
+- `.agnostic-core/skills/ux-ui/principios-de-interface.md` — Hierarquia visual, espacamento, modais
+
+**Auditoria & Qualidade:**
+- `.agnostic-core/skills/audit/code-review.md` — Corretude, seguranca, qualidade, performance
+- `.agnostic-core/skills/audit/validation-checklist.md` — Quick check + Full check pre-deploy
+- `.agnostic-core/skills/audit/refactoring.md` — 7 fases de decomposicao segura
+
+**Performance:**
+- `.agnostic-core/skills/performance/performance-audit.md` — Frontend: lazy load, debounce, cache headers
+
+### Skills Recomendadas (consultar quando aplicavel)
+
+**Seguranca:**
+- `.agnostic-core/skills/security/owasp-checklist.md` — XSS, injection, headers, CSP (relevante para innerHTML)
+- `.agnostic-core/skills/security/politica-de-seguranca.md` — Politica geral
+
+**Git & Workflow:**
+- `.agnostic-core/skills/git/commit-conventions.md` — Conventional Commits: `feat(jogo): descricao`
+- `.agnostic-core/skills/workflow/project-workflow.md` — 6 fases: Initialize → Discuss → Plan → Execute → Verify → Complete
+- `.agnostic-core/skills/workflow/goal-backward-planning.md` — Planejamento reverso a partir do objetivo
+
+**Deploy:**
+- `.agnostic-core/skills/devops/pre-deploy-checklist.md` — Checklist pre-deploy
+- `.agnostic-core/skills/performance/caching-strategies.md` — Cache L1-L3
+
+### Agents Disponiveis
+
+**Para auditorias de codigo:**
+```
+Atue como o agent em .agnostic-core/agents/reviewers/code-inspector.md
+Audite os arquivos em jogos/ usando a metodologia SPARC.
+```
+
+**Para revisao de frontend:**
+```
+Atue como o agent em .agnostic-core/agents/reviewers/frontend-reviewer.md
+Revise os arquivos HTML, CSS e JS do projeto.
+```
+
+**Todos os agents:**
+- `.agnostic-core/agents/reviewers/code-inspector.md` — Auditoria SPARC (Security, Performance, Architecture, Reliability, Code Quality)
+- `.agnostic-core/agents/reviewers/frontend-reviewer.md` — Revisao de HTML/CSS/JS, acessibilidade, UX
+- `.agnostic-core/agents/reviewers/security-reviewer.md` — Revisao de seguranca
+- `.agnostic-core/agents/reviewers/performance-reviewer.md` — Revisao de performance
+- `.agnostic-core/agents/reviewers/codebase-mapper.md` — Mapeamento de codebase (STACK/ARCH/CONVENTIONS/CONCERNS)
+- `.agnostic-core/agents/generators/project-planner.md` — Planejamento estruturado (ROADMAP + PLAN)
+
+### Workflows
+
+- `.agnostic-core/commands/workflows/create.md` — Criar feature do zero
+- `.agnostic-core/commands/workflows/debug.md` — Debug sistematico
+- `.agnostic-core/commands/workflows/brainstorm.md` — Explorar opcoes antes de implementar
+- `.agnostic-core/commands/workflows/deploy.md` — Processo de deploy seguro
+
+### Atualizacao do Submodule
+```bash
+git submodule update --remote .agnostic-core
+git add .agnostic-core
+git commit -m "chore(deps): atualizar agnostic-core"
+```
+
+---
 
 ## Protocolo de Planejamento
 
-**ANTES de implementar qualquer mudanca:**
-1. Criar planejamento com TodoWrite
-2. Apresentar ao usuario
-3. Aguardar aprovacao
-4. Executar
+**ANTES de implementar qualquer mudanca significativa:**
+1. Consultar skills relevantes do agnostic-core
+2. Criar planejamento com TodoWrite
+3. Apresentar ao usuario
+4. Aguardar aprovacao
+5. Executar
+6. Auditar com SPARC se for novo jogo ou mudanca estrutural
+
+---
+
+## Protocolo de Auditoria (SPARC)
+
+Ao criar ou modificar jogos, aplicar as 5 dimensoes:
+- **S (Security):** innerHTML com dados dinamicos? Event listeners limpos? Sem globals desnecessarios?
+- **P (Performance):** requestAnimationFrame (nao setInterval)? Canvas resize eficiente? Sem redraws desnecessarios?
+- **A (Architecture):** IIFE encapsulado? Cleanup no fechar()? Separacao clara de update/render?
+- **R (Reliability):** Touch + mouse? Resize handler? ESC para sair? Sem memory leaks?
+- **C (Code Quality):** Nomes claros? Sem duplicacao? Constantes configuradas no topo?
+
+---
+
+## Conventional Commits
+
+Formato: `type(scope): descricao em imperativo`
+
+Tipos: `feat` | `fix` | `docs` | `refactor` | `chore` | `perf` | `test`
+Escopos: `penaltis` | `escorpiao` | `reptil` | `hub` | `splash` | `deps` | `infra`
+
+Exemplos:
+```
+feat(reptil): adicionar jogo reptil com IK procedural
+fix(penaltis): corrigir ratings negativos no game over
+chore(deps): atualizar agnostic-core
+docs(readme): adicionar descricao do jogo reptil
+refactor(escorpiao): cachear grade em offscreen canvas
+```
+
+---
 
 ## Jogos Existentes
 
@@ -145,7 +255,7 @@ Consultar antes de implementar:
 - 2 modos: striker (cobrar) e keeper (defender)
 - 4 dificuldades com IA progressiva
 - Controles: mouse/touch + teclado (Q/W/E + A/S/D)
-- 5 cobranças por partida
+- 5 cobrancas por partida
 
 ### Escorpiao (`escorpiao.js`)
 - Canvas fullscreen
@@ -164,9 +274,22 @@ Consultar antes de implementar:
 - Controles: mouse/touch, ESC para sair
 - Inspirado em Reptile Interactive Cursor (MIT License)
 
+### Tecnologias Reutilizaveis Entre Jogos
+
+| Tecnologia | Origem | Reusar em |
+|---|---|---|
+| IK esqueletica (Segment/LimbSystem) | reptil.js | Qualquer criatura articulada |
+| LegSystem auto-step | reptil.js | Bichos que andam |
+| Chain following (LERP) | escorpiao.js | Cobras, minhocas, caudas |
+| Creature physics (accel/friction) | reptil.js | Qualquer entidade movel |
+| Gradientes radiais + glow | escorpiao.js | Visual rico em qualquer jogo |
+| Grid decorativa de fundo | escorpiao.js, reptil.js | Padrao visual de fundo |
+
+---
+
 ## Ideias para Novos Jogos
 - Snake (tema futebol)
 - Memory (escudos de times)
-- Quiz de futebol
 - Dino runner (estilo Chrome offline)
-- Flappy bird (tema cartola)
+- Aranha (IK do reptil + teia)
+- Centopeia (chain following + legs)
