@@ -56,6 +56,11 @@
     var _sheetIsImg = false;
     var _sheetReady = false;
 
+    // GIF sprites (animados, fundo branco removido por pixel)
+    var _gifs = { run: null, jump: null };
+    var _gifsReady = false;
+    var _gifCanvas = null, _gifCtx = null;
+
     // Mapa para PNG externo. Formato: [sx, sy, sw, sh, pivX, pivY]
     // Ajuste se o seu spritesheet tiver dimensoes diferentes.
     var SPRITE_MAP = {
@@ -76,6 +81,17 @@
         img.onload = function () { _sheet = img; _sheetIsImg = true;  _sheetReady = true; };
         img.onerror = function () { _sheet = _buildSheet(); _sheetIsImg = false; _sheetReady = true; };
         img.src = 'assets/sprites/sonic/sonic.png';
+    }
+
+    function initGifs() {
+        var loaded = 0;
+        function onDone() { loaded++; if (loaded >= 2) _gifsReady = true; }
+        ['run', 'jump'].forEach(function (name) {
+            var img = new Image();
+            img.onload  = function () { _gifs[name] = img; onDone(); };
+            img.onerror = onDone;
+            img.src = 'assets/sprites/sonic/' + name + '.gif';
+        });
     }
 
     // ---- Gerar sprite sheet em offscreen canvas ----
@@ -282,7 +298,9 @@
 
         ctx.imageSmoothingEnabled = false;
 
-        if (_sheetIsImg) {
+        if (_gifsReady && S.phase !== 'spindash') {
+            _drawFromGIF();
+        } else if (_sheetIsImg) {
             _drawFromPNG();
         } else {
             _drawFromGenerated();
@@ -290,6 +308,39 @@
 
         ctx.globalAlpha = 1;
         ctx.restore();
+    }
+
+    // Desenha GIF animado com fundo branco removido via mini offscreen canvas
+    function _drawFromGIF() {
+        var isSpinning = S.phase === 'jump' || S.phase === 'roll';
+        var img = isSpinning ? (_gifs.jump || _gifs.run) : _gifs.run;
+        if (!img || !img.naturalHeight) return;
+
+        var TARGET_H = 90;
+        var scale = TARGET_H / img.naturalHeight;
+        var dw = Math.round(img.naturalWidth * scale);
+        var dh = TARGET_H;
+
+        // Criar/reciclar offscreen canvas do tamanho exato
+        if (!_gifCanvas || _gifCanvas.width !== dw || _gifCanvas.height !== dh) {
+            _gifCanvas = document.createElement('canvas');
+            _gifCanvas.width  = dw;
+            _gifCanvas.height = dh;
+            _gifCtx = _gifCanvas.getContext('2d');
+        }
+        _gifCtx.clearRect(0, 0, dw, dh);
+        _gifCtx.drawImage(img, 0, 0, dw, dh);
+
+        // Remover pixels brancos/quase-brancos (threshold 230)
+        var id = _gifCtx.getImageData(0, 0, dw, dh);
+        var d  = id.data;
+        for (var i = 0; i < d.length; i += 4) {
+            if (d[i] > 230 && d[i+1] > 230 && d[i+2] > 230) d[i+3] = 0;
+        }
+        _gifCtx.putImageData(id, 0, 0);
+
+        // Âncora: pés = (0,0). Horizontal: ~40% da largura é onde ficam os pés
+        ctx.drawImage(_gifCanvas, -dw * 0.40, -dh, dw, dh);
     }
 
     function _drawFromGenerated() {
@@ -839,6 +890,7 @@
 
             initState();
             initSprites(); // carrega PNG ou gera sprites
+            initGifs();    // carrega GIFs animados (run + jump)
             createSDBtn();
             setupInput();
             gameLoop();
