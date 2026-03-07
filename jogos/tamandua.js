@@ -3,7 +3,7 @@
 // =====================================================================
 // Runner automatico com tamandua procedural (formas simples, sem IK)
 // Inspirado no Chrome Dino: fisica arcade, spawn por distancia
-// Toque/Space para pular, colete formigas, sem game over
+// Toque/Space para pular, colete formigas, 3 vidas, fases progressivas
 // =====================================================================
 
 (function () {
@@ -69,6 +69,13 @@
         STUMBLE_SPEED_MULT: 0.4,
         INVINCIBLE_FRAMES: 60,
         CELEBRATE_EVERY: 10,
+
+        // Lives & Phases
+        MAX_LIVES: 3,
+        PHASE_GOALS: [10, 25, 45], // ants needed to clear each phase
+        PHASE_SPEED_BONUS: 1.0, // extra base speed per phase
+        PHASE_BANNER_DURATION: 120,
+        GAMEOVER_DELAY: 60, // frames before showing game over
 
         // Obstacle spawn
         MIN_GAP: 140,
@@ -172,6 +179,29 @@
         self._tone('sine', 523, 0.1, 0.15); // C
         setTimeout(function () { self._tone('sine', 659, 0.1, 0.15); }, 100); // E
         setTimeout(function () { self._tone('sine', 784, 0.15, 0.18); }, 200); // G
+    };
+
+    SomTamandua.prototype.perderVida = function () {
+        this._tone('triangle', 300, 0.15, 0.15, 100);
+        var self = this;
+        setTimeout(function () { self._tone('triangle', 200, 0.2, 0.12, 80); }, 150);
+    };
+
+    SomTamandua.prototype.gameOver = function () {
+        // Gentle descending melody (not sad, just "done")
+        var self = this;
+        self._tone('sine', 500, 0.15, 0.12);
+        setTimeout(function () { self._tone('sine', 400, 0.15, 0.12); }, 150);
+        setTimeout(function () { self._tone('sine', 350, 0.25, 0.15); }, 300);
+    };
+
+    SomTamandua.prototype.subirFase = function () {
+        // Ascending fanfare
+        var self = this;
+        self._tone('sine', 523, 0.1, 0.15); // C
+        setTimeout(function () { self._tone('sine', 659, 0.1, 0.15); }, 100); // E
+        setTimeout(function () { self._tone('sine', 784, 0.1, 0.15); }, 200); // G
+        setTimeout(function () { self._tone('sine', 1047, 0.25, 0.2); }, 300); // C5
     };
 
     SomTamandua.prototype.fechar = function () {
@@ -512,7 +542,7 @@
         ctx: null,
         animFrame: null,
         som: null,
-        state: 'WAITING', // WAITING, RUNNING, STUMBLE
+        state: 'WAITING', // WAITING, RUNNING, STUMBLE, GAMEOVER
         _onKey: null,
         _onTouch: null,
         _onClick: null,
@@ -524,6 +554,11 @@
         distance: 0,
         score: 0,
         frameCount: 0,
+        lives: 3,
+        phase: 1,
+        phaseBannerTimer: 0,
+        gameOverTimer: 0,
+        gameOverReady: false, // true when tap-to-restart is active
 
         // Tamandua
         tamaX: 0,
@@ -576,6 +611,11 @@
             this.distance = 0;
             this.score = 0;
             this.frameCount = 0;
+            this.lives = CONF.MAX_LIVES;
+            this.phase = 1;
+            this.phaseBannerTimer = 0;
+            this.gameOverTimer = 0;
+            this.gameOverReady = false;
             this.tamaVY = 0;
             this.grounded = true;
             this.coyoteCounter = 0;
@@ -613,8 +653,14 @@
             var scoreDiv = document.createElement('div');
             scoreDiv.id = 'tamandua-score';
             scoreDiv.style.cssText = 'position:absolute;top:16px;right:20px;color:#fff;font-family:"JetBrains Mono","Courier New",monospace;font-size:clamp(1rem,3vw,1.5rem);text-shadow:0 0 10px rgba(210,105,30,0.6);pointer-events:none;text-align:right;';
-            scoreDiv.innerHTML = '<div id="tamandua-dist" style="font-size:clamp(1.2rem,4vw,2rem);font-weight:bold;">00000</div><div id="tamandua-ants" style="margin-top:4px;color:#cc3333;font-size:clamp(0.8rem,2.5vw,1.2rem);"><span style="font-family:\'Material Icons\';font-size:inherit;vertical-align:middle;">pest_control</span> <span id="tamandua-ant-count">0</span></div>';
+            scoreDiv.innerHTML = '<div id="tamandua-lives" style="font-size:clamp(1.2rem,4vw,2rem);color:#e74c3c;letter-spacing:4px;"></div>' +
+                '<div id="tamandua-phase" style="margin-top:4px;font-size:clamp(0.7rem,2vw,1rem);color:#fde047;font-family:Russo One,sans-serif;"></div>' +
+                '<div id="tamandua-dist" style="font-size:clamp(1.2rem,4vw,2rem);font-weight:bold;margin-top:4px;">00000</div>' +
+                '<div id="tamandua-ants" style="margin-top:4px;color:#cc3333;font-size:clamp(0.8rem,2.5vw,1.2rem);"><span style="font-family:\'Material Icons\';font-size:inherit;vertical-align:middle;">pest_control</span> <span id="tamandua-ant-count">0</span></div>' +
+                '<div id="tamandua-goal" style="margin-top:2px;font-size:clamp(0.6rem,1.8vw,0.85rem);color:rgba(255,255,255,0.5);"></div>';
             overlay.appendChild(scoreDiv);
+            this._updateLivesUI();
+            this._updatePhaseUI();
 
             // Close button
             var closeBtn = document.createElement('button');
@@ -787,6 +833,11 @@
                 this.speed = CONF.INITIAL_SPEED;
                 this.distance = 0;
                 this.score = 0;
+                this.lives = CONF.MAX_LIVES;
+                this.phase = 1;
+                this.phaseBannerTimer = 0;
+                this.gameOverTimer = 0;
+                this.gameOverReady = false;
                 this.obstacles = [];
                 this.ants = [];
                 this.nextObstacleDist = 300;
@@ -794,6 +845,44 @@
                 if (this.som) this.som.pulo();
                 this.tamaVY = CONF.JUMP_VELOCITY;
                 this.grounded = false;
+                this._updateLivesUI();
+                this._updatePhaseUI();
+                return;
+            }
+
+            if (this.state === 'GAMEOVER') {
+                if (!this.gameOverReady) return;
+                // Restart game
+                this.state = 'RUNNING';
+                this.speed = CONF.INITIAL_SPEED;
+                this.distance = 0;
+                this.score = 0;
+                this.lives = CONF.MAX_LIVES;
+                this.phase = 1;
+                this.phaseBannerTimer = 0;
+                this.gameOverTimer = 0;
+                this.gameOverReady = false;
+                this.stumbleTimer = 0;
+                this.invincibleTimer = 0;
+                this.shakeIntensity = 0;
+                this.shakeX = 0;
+                this.shakeY = 0;
+                this.tamaY = this.groundY;
+                this.tamaVY = CONF.JUMP_VELOCITY;
+                this.grounded = false;
+                this.obstacles = [];
+                this.ants = [];
+                this.particles = [];
+                this.nextObstacleDist = 300;
+                this.nextAntDist = 150;
+                this.lastMilestone = 0;
+                this.celebrateTimer = 0;
+                if (this.som) this.som.pulo();
+                this._updateLivesUI();
+                this._updatePhaseUI();
+                this._updateScoreUI();
+                var distEl = document.getElementById('tamandua-dist');
+                if (distEl) distEl.textContent = '00000';
                 return;
             }
 
@@ -817,6 +906,29 @@
 
             if (this.state === 'WAITING') return;
 
+            // Game over countdown
+            if (this.state === 'GAMEOVER') {
+                if (this.gameOverTimer > 0) {
+                    this.gameOverTimer--;
+                    if (this.gameOverTimer <= 0) {
+                        this.gameOverReady = true;
+                    }
+                }
+                // Still update particles during game over for visual polish
+                for (var gpi = this.particles.length - 1; gpi >= 0; gpi--) {
+                    var gp = this.particles[gpi];
+                    gp.x += gp.vx;
+                    gp.y += gp.vy;
+                    gp.vy += 0.1;
+                    gp.life -= gp.decay;
+                    if (gp.life <= 0) this.particles.splice(gpi, 1);
+                }
+                return;
+            }
+
+            // Phase banner timer
+            if (this.phaseBannerTimer > 0) this.phaseBannerTimer--;
+
             var gY = this.groundY;
 
             // Speed increase
@@ -826,7 +938,8 @@
                     this.state = 'RUNNING';
                 }
             } else {
-                if (this.speed < CONF.MAX_SPEED) {
+                var phaseMax = Math.min(CONF.MAX_SPEED, CONF.MAX_SPEED + (this.phase - 1) * 0.5);
+                if (this.speed < phaseMax) {
                     this.speed += CONF.ACCELERATION;
                 }
             }
@@ -940,7 +1053,11 @@
                     this._updateScoreUI();
                     this._spawnCollectParticles(a.x, a.y);
 
-                    if (this.score % CONF.CELEBRATE_EVERY === 0) {
+                    // Check phase advancement
+                    var phaseIdx = this.phase - 1;
+                    if (phaseIdx < CONF.PHASE_GOALS.length && this.score >= CONF.PHASE_GOALS[phaseIdx]) {
+                        this._advancePhase();
+                    } else if (this.score % CONF.CELEBRATE_EVERY === 0) {
                         this._celebrate();
                     }
                 }
@@ -999,11 +1116,9 @@
         },
 
         _stumble: function () {
-            this.state = 'STUMBLE';
-            this.stumbleTimer = CONF.STUMBLE_DURATION;
-            this.invincibleTimer = CONF.INVINCIBLE_FRAMES;
+            this.lives--;
+            this._updateLivesUI();
             this.shakeIntensity = 8;
-            if (this.som) this.som.tropeco();
 
             // Impact particles
             for (var i = 0; i < 6; i++) {
@@ -1018,6 +1133,22 @@
                     size: 2 + Math.random() * 3,
                 });
             }
+
+            if (this.lives <= 0) {
+                // Game over
+                this.state = 'GAMEOVER';
+                this.speed = 0;
+                this.gameOverTimer = CONF.GAMEOVER_DELAY;
+                this.gameOverReady = false;
+                if (this.som) this.som.gameOver();
+                return;
+            }
+
+            // Still alive — stumble as before
+            this.state = 'STUMBLE';
+            this.stumbleTimer = CONF.STUMBLE_DURATION;
+            this.invincibleTimer = CONF.INVINCIBLE_FRAMES;
+            if (this.som) this.som.perderVida();
         },
 
         _spawnDust: function (x, y) {
@@ -1125,6 +1256,67 @@
             }
         },
 
+        _advancePhase: function () {
+            this.phase++;
+            this.phaseBannerTimer = CONF.PHASE_BANNER_DURATION;
+            if (this.som) this.som.subirFase();
+
+            // Speed boost for new phase
+            this.speed = Math.min(CONF.MAX_SPEED, CONF.INITIAL_SPEED + (this.phase - 1) * CONF.PHASE_SPEED_BONUS);
+
+            // Bonus life (up to max)
+            if (this.lives < CONF.MAX_LIVES) {
+                this.lives++;
+                this._updateLivesUI();
+            }
+
+            this._updatePhaseUI();
+
+            // Phase confetti (bigger than normal celebrate)
+            var W = this.W;
+            var colors = ['#fde047', '#f472b6', '#38bdf8', '#34d399', '#fb923c', '#818cf8', '#fff'];
+            for (var i = 0; i < 40; i++) {
+                this.particles.push({
+                    x: W / 2 + (Math.random() - 0.5) * W * 0.7,
+                    y: this.H * 0.25,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: -(Math.random() * 8 + 2),
+                    life: 1,
+                    decay: 0.005 + Math.random() * 0.005,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: 3 + Math.random() * 6,
+                });
+            }
+        },
+
+        _updateLivesUI: function () {
+            var el = document.getElementById('tamandua-lives');
+            if (!el) return;
+            var hearts = '';
+            for (var i = 0; i < CONF.MAX_LIVES; i++) {
+                if (i < this.lives) {
+                    hearts += '<span style="font-family:\'Material Icons\';vertical-align:middle;">favorite</span>';
+                } else {
+                    hearts += '<span style="font-family:\'Material Icons\';vertical-align:middle;opacity:0.25;">favorite</span>';
+                }
+            }
+            el.innerHTML = hearts;
+        },
+
+        _updatePhaseUI: function () {
+            var phaseEl = document.getElementById('tamandua-phase');
+            if (phaseEl) phaseEl.textContent = 'Fase ' + this.phase;
+            var goalEl = document.getElementById('tamandua-goal');
+            if (goalEl) {
+                var phaseIdx = this.phase - 1;
+                if (phaseIdx < CONF.PHASE_GOALS.length) {
+                    goalEl.textContent = this.score + ' / ' + CONF.PHASE_GOALS[phaseIdx];
+                } else {
+                    goalEl.textContent = '';
+                }
+            }
+        },
+
         _updateScoreUI: function () {
             var el = document.getElementById('tamandua-ant-count');
             if (el) el.textContent = this.score;
@@ -1135,6 +1327,16 @@
                 self._timeouts.push(setTimeout(function () {
                     if (scoreDiv) scoreDiv.style.transform = 'scale(1)';
                 }, 150));
+            }
+            // Update goal progress
+            var goalEl = document.getElementById('tamandua-goal');
+            if (goalEl) {
+                var phaseIdx = this.phase - 1;
+                if (phaseIdx < CONF.PHASE_GOALS.length) {
+                    goalEl.textContent = this.score + ' / ' + CONF.PHASE_GOALS[phaseIdx];
+                } else {
+                    goalEl.textContent = '';
+                }
             }
         },
 
@@ -1343,6 +1545,62 @@
                 ctx.fillText(this.score + ' formigas!', W / 2, H * 0.3 + 50);
                 ctx.shadowBlur = 0;
                 ctx.globalAlpha = 1;
+            }
+
+            // ---- Phase banner ----
+            if (this.phaseBannerTimer > 0) {
+                var pbAlpha = Math.min(1, this.phaseBannerTimer / 30);
+                ctx.globalAlpha = pbAlpha;
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = 'bold clamp(2.5rem,10vw,5rem) "Russo One",sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = '#38bdf8';
+                ctx.shadowBlur = 40;
+                ctx.fillText('Fase ' + this.phase + '!', W / 2, H * 0.3);
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+            }
+
+            // ---- Game Over screen ----
+            if (this.state === 'GAMEOVER') {
+                // Dim overlay
+                ctx.fillStyle = 'rgba(5,10,20,0.6)';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Positive message
+                ctx.fillStyle = '#fde047';
+                ctx.font = 'bold clamp(2.5rem,10vw,5rem) "Russo One",sans-serif';
+                ctx.shadowColor = '#fde047';
+                ctx.shadowBlur = 30;
+                ctx.fillText('Muito bem!', W / 2, H * 0.3);
+                ctx.shadowBlur = 0;
+
+                // Score summary
+                ctx.fillStyle = '#fff';
+                ctx.font = 'clamp(1rem,4vw,1.8rem) "Russo One",sans-serif';
+                ctx.fillText(this.score + ' formigas', W / 2, H * 0.3 + 60);
+
+                // Phase reached
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = 'clamp(0.8rem,3vw,1.3rem) "Russo One",sans-serif';
+                ctx.fillText('Fase ' + this.phase, W / 2, H * 0.3 + 100);
+
+                // Tap to restart (pulsing, only after delay)
+                if (this.gameOverReady) {
+                    var goPulse = Math.sin(this.frameCount * 0.06) * 0.3 + 0.7;
+                    ctx.globalAlpha = goPulse;
+                    ctx.fillStyle = '#34d399';
+                    ctx.font = 'bold clamp(1.2rem,5vw,2.2rem) "Russo One",sans-serif';
+                    ctx.shadowColor = '#34d399';
+                    ctx.shadowBlur = 20;
+                    ctx.fillText('Jogar!', W / 2, H * 0.55);
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1;
+                }
             }
 
             // ---- Waiting screen ----
