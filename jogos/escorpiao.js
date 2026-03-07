@@ -57,6 +57,7 @@
         comidas:    [],
         spawnTimer: 0,
         faseIdx:    0,
+        score:      0,
         particulas: [],
         ac:         null,
         _bloqueado: false,
@@ -126,6 +127,21 @@
             ].join(';');
             faseEl.textContent = 'Fase 1';
 
+            // Pontuacao (centro superior)
+            const scoreEl = document.createElement('div');
+            scoreEl.id = 'escorpiao-score';
+            scoreEl.style.cssText = [
+                'position:absolute', 'top:16px', 'left:50%',
+                'transform:translateX(-50%)',
+                'font-family:"Russo One",sans-serif',
+                'font-size:1.8rem', 'color:#fde047',
+                'text-shadow:0 0 20px rgba(253,224,71,0.5)',
+                'pointer-events:none', 'user-select:none',
+                'transition:transform 0.1s',
+            ].join(';');
+            scoreEl.textContent = '0';
+            this.score = 0;
+
             // Label instrucao
             const label = document.createElement('div');
             label.style.cssText = [
@@ -140,6 +156,7 @@
             overlay.appendChild(canvas);
             overlay.appendChild(closeBtn);
             overlay.appendChild(faseEl);
+            overlay.appendChild(scoreEl);
             overlay.appendChild(label);
             document.body.appendChild(overlay);
 
@@ -192,9 +209,15 @@
             this.targetY    = cy;
             this.frameCount = 0;
             this.comidas    = [];
-            this.spawnTimer = this._getFase().spawnInterval - 80; // primeira comida rapido (~1.3s)
+            this.spawnTimer = this._getFase().spawnInterval - 80;
             this.particulas = [];
             this._bloqueado = false;
+            // Nao reseta score ao reiniciar (pequenino) — apenas ao abrir
+        },
+
+        _atualizarScoreDOM() {
+            const el = document.getElementById('escorpiao-score');
+            if (el) el.textContent = this.score;
         },
 
         fechar() {
@@ -341,6 +364,12 @@
             this._spawnParticulas(food.x, food.y, food.cor, 24);
             this._somComer(food.tipo);
 
+            // Pontuacao
+            const pts = food.tipo === 'maca' ? 10 : 5;
+            this.score += pts;
+            this._atualizarScoreDOM();
+            this._animarScore();
+
             if (food.tipo === 'maca') {
                 const tIdx = Math.max(1, this.segs.length - CONF.TAIL_LEN);
                 const ref  = this.segs[tIdx - 1];
@@ -357,6 +386,13 @@
                 if (count > 0) this.segs.splice(removeFrom, count);
                 if (this.segs.length <= CONF.GAMEOVER_SEGS) this._pequenino();
             }
+        },
+
+        _animarScore() {
+            const el = document.getElementById('escorpiao-score');
+            if (!el) return;
+            el.style.transform = 'translateX(-50%) scale(1.4)';
+            setTimeout(() => { el.style.transform = 'translateX(-50%) scale(1)'; }, 150);
         },
 
         // ---- Passou de fase ----
@@ -442,10 +478,13 @@
             this._somToque();
         },
 
-        // ---- Audio (lazy) ----
+        // ---- Audio (lazy + resume para mobile) ----
         _initAudio() {
             if (!this.ac) {
                 try { this.ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+            }
+            if (this.ac && this.ac.state === 'suspended') {
+                this.ac.resume();
             }
         },
 
@@ -585,7 +624,8 @@
         },
 
         _somAparecer() {
-            if (!this.ac) return;
+            this._initAudio();
+            if (!this.ac || this.ac.state !== 'running') return;
             const ac = this.ac, osc = ac.createOscillator(), gain = ac.createGain();
             osc.connect(gain); gain.connect(ac.destination);
             osc.type = 'triangle';
