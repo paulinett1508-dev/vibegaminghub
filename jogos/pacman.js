@@ -208,6 +208,8 @@
         ghosts: [],
         pelletCount: 0,
         score: 0,
+        vidas: 3,
+        maxVidas: 3,
         fase: 1,
         maxFases: 3,
         powerMode: false,
@@ -216,7 +218,9 @@
         targetDir: { x: 0, y: 0 },
         scoreDiv: null,
         faseDiv: null,
+        vidasDiv: null,
         vitoriaDiv: null,
+        gameOverDiv: null,
         _onKey: null,
         _onResize: null,
 
@@ -277,6 +281,7 @@
             }
 
             self.score = 0;
+            self.vidas = self.maxVidas;
             self.fase = 1;
             self.powerMode = false;
             self.targetDir = { x: 0, y: 0 };
@@ -332,6 +337,23 @@
             faseDiv.textContent = 'Fase 1/3';
             self.faseDiv = faseDiv;
 
+            // Vidas display
+            var vidasDiv = document.createElement('div');
+            vidasDiv.id = 'pacman-vidas';
+            vidasDiv.style.cssText = [
+                'position:absolute',
+                'top:20px',
+                'left:20px',
+                'font-family:JetBrains Mono,monospace',
+                'font-size:1.2rem',
+                'color:#ffff00',
+                'text-shadow:0 0 8px #ffff00',
+                'display:flex',
+                'gap:6px',
+            ].join(';');
+            self.vidasDiv = vidasDiv;
+            self._atualizarVidas();
+
             // Botao fechar
             var closeBtn = document.createElement('button');
             closeBtn.style.cssText = [
@@ -358,6 +380,7 @@
             overlay.appendChild(canvas);
             overlay.appendChild(scoreDiv);
             overlay.appendChild(faseDiv);
+            overlay.appendChild(vidasDiv);
             overlay.appendChild(closeBtn);
             document.body.appendChild(overlay);
 
@@ -562,11 +585,39 @@
                         g.y = 9 * cell + cell / 2;
                         g.scared = false;
                     } else if (!g.scared) {
-                        // Respawn Pac-Man (sem game over - e para criancas!)
+                        // Perdeu uma vida
+                        this.vidas--;
+                        this._atualizarVidas();
                         this.som.morte();
+
+                        if (this.vidas <= 0) {
+                            // Game over
+                            this._mostrarGameOver();
+                            return;
+                        }
+
+                        // Respawn Pac-Man
                         pac.x = 9 * cell + cell / 2;
                         pac.y = 15 * cell + cell / 2;
                         pac.dir = { x: 0, y: 0 };
+
+                        // Resetar fantasmas tambem
+                        var ghostPositions = [
+                            { x: 9, y: 9 },
+                            { x: 8, y: 9 },
+                            { x: 10, y: 9 },
+                            { x: 9, y: 8 },
+                        ];
+                        for (var j = 0; j < this.ghosts.length; j++) {
+                            this.ghosts[j].x = ghostPositions[j].x * cell + cell / 2;
+                            this.ghosts[j].y = ghostPositions[j].y * cell + cell / 2;
+                            this.ghosts[j].scared = false;
+                        }
+                        this.powerMode = false;
+                        if (this.powerTimer) {
+                            clearTimeout(this.powerTimer);
+                            this.powerTimer = null;
+                        }
                     }
                 }
             }
@@ -838,14 +889,118 @@
             this.vitoriaDiv = vitoriaDiv;
         },
 
+        _atualizarVidas: function () {
+            if (!this.vidasDiv) return;
+            // Exibir Pac-Mans como icones de vida
+            var html = '';
+            for (var i = 0; i < this.vidas; i++) {
+                html += '<span style="font-size:1.5rem;">&#9679;</span>'; // circulo amarelo
+            }
+            this.vidasDiv.innerHTML = html;
+        },
+
+        _mostrarGameOver: function () {
+            var self = this;
+
+            // Pausar jogo
+            if (this.animFrame) {
+                cancelAnimationFrame(this.animFrame);
+                this.animFrame = null;
+            }
+
+            // Criar tela de game over
+            var gameOverDiv = document.createElement('div');
+            gameOverDiv.id = 'pacman-gameover';
+            gameOverDiv.style.cssText = [
+                'position:absolute',
+                'inset:0',
+                'background:rgba(0,0,0,0.9)',
+                'display:flex',
+                'flex-direction:column',
+                'align-items:center',
+                'justify-content:center',
+                'gap:24px',
+                'z-index:100',
+            ].join(';');
+
+            var titulo = document.createElement('div');
+            titulo.style.cssText = [
+                'font-family:Russo One,sans-serif',
+                'font-size:2rem',
+                'color:#ff4444',
+                'text-align:center',
+                'text-shadow:0 0 20px #ff4444',
+            ].join(';');
+            titulo.textContent = 'Fim de Jogo!';
+
+            var subtitulo = document.createElement('div');
+            subtitulo.style.cssText = [
+                'font-family:Inter,sans-serif',
+                'font-size:1.2rem',
+                'color:#fff',
+                'text-align:center',
+            ].join(';');
+            subtitulo.textContent = 'Pontos: ' + this.score + ' | Fase: ' + this.fase + '/' + this.maxFases;
+
+            var botoes = document.createElement('div');
+            botoes.style.cssText = 'display:flex;gap:16px;margin-top:20px;';
+
+            var btnJogar = document.createElement('button');
+            btnJogar.style.cssText = [
+                'background:linear-gradient(180deg,#22c55e,#16a34a)',
+                'color:#fff',
+                'border:none',
+                'padding:16px 32px',
+                'border-radius:12px',
+                'font-family:Russo One,sans-serif',
+                'font-size:1rem',
+                'cursor:pointer',
+                'box-shadow:0 4px 0 #166534',
+            ].join(';');
+            btnJogar.textContent = 'Tentar de Novo';
+            btnJogar.addEventListener('click', function () {
+                gameOverDiv.remove();
+                self._reiniciarJogo();
+            });
+
+            var btnOutro = document.createElement('button');
+            btnOutro.style.cssText = [
+                'background:linear-gradient(180deg,#3b82f6,#2563eb)',
+                'color:#fff',
+                'border:none',
+                'padding:16px 32px',
+                'border-radius:12px',
+                'font-family:Russo One,sans-serif',
+                'font-size:1rem',
+                'cursor:pointer',
+                'box-shadow:0 4px 0 #1d4ed8',
+            ].join(';');
+            btnOutro.textContent = 'Outro Jogo';
+            btnOutro.addEventListener('click', function () {
+                window.fecharJoguinhos ? window.fecharJoguinhos() : self.fechar();
+            });
+
+            botoes.appendChild(btnJogar);
+            botoes.appendChild(btnOutro);
+            gameOverDiv.appendChild(titulo);
+            gameOverDiv.appendChild(subtitulo);
+            gameOverDiv.appendChild(botoes);
+
+            var overlay = document.getElementById('pacman-overlay');
+            if (overlay) overlay.appendChild(gameOverDiv);
+            this.gameOverDiv = gameOverDiv;
+        },
+
         _reiniciarJogo: function () {
             var self = this;
             var cell = CONF.CELL;
 
             // Resetar estado
             this.score = 0;
+            this.vidas = this.maxVidas;
             this.fase = 1;
             this.powerMode = false;
+            this._atualizarVidas();
 
             // Resetar mapa
             this.pelletCount = 0;
