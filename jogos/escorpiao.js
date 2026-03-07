@@ -65,6 +65,7 @@
         ambientNode:  null,
         ambientGain:  null,
         _bloqueado:   false,
+        _timeouts:    [],
 
         _getFase() {
             return CONF.FASES[Math.min(this.faseIdx, CONF.FASES.length - 1)];
@@ -176,7 +177,7 @@
             overlay.appendChild(label);
             document.body.appendChild(overlay);
 
-            setTimeout(() => { label.style.opacity = '0'; }, 3500);
+            this._timeouts.push(setTimeout(() => { label.style.opacity = '0'; }, 3500));
 
             // Toque / clique
             overlay.addEventListener('click', (e) => {
@@ -236,6 +237,7 @@
             if (this.animFrame) { cancelAnimationFrame(this.animFrame); this.animFrame = null; }
             if (this._onKey)    { document.removeEventListener('keydown', this._onKey); this._onKey = null; }
             if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; }
+            this._timeouts.forEach(clearTimeout); this._timeouts = [];
             this._pararAmbiente();
             if (this.ac)        { this.ac.close(); this.ac = null; }
             const overlay = document.getElementById('escorpiao-overlay');
@@ -434,7 +436,7 @@
             const faseEl = document.getElementById('escorpiao-fase');
             if (faseEl) faseEl.textContent = `Fase ${this.faseIdx + 1} / 3`;
 
-            setTimeout(() => { EscorpiaoGame._bloqueado = false; }, 2000);
+            this._timeouts.push(setTimeout(() => { EscorpiaoGame._bloqueado = false; }, 2000));
         },
 
         // ---- Vitoria ----
@@ -586,7 +588,7 @@
             el.style.cssText = 'position:absolute;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;pointer-events:none;';
             el.innerHTML = `<span style="font-family:'Russo One',sans-serif;font-size:clamp(2.5rem,10vw,5rem);color:${cor};text-shadow:0 0 40px ${cor};animation:escFadeOut 2s forwards;">${texto}</span>`;
             overlay.appendChild(el);
-            setTimeout(() => el.remove(), 2100);
+            this._timeouts.push(setTimeout(() => el.remove(), 2100));
         },
 
         // ---- Toque ----
@@ -671,7 +673,7 @@
             const el = document.getElementById('escorpiao-score');
             if (!el) return;
             el.style.transform = 'translateX(-50%) scale(1.4)';
-            setTimeout(() => { el.style.transform = 'translateX(-50%) scale(1)'; }, 150);
+            this._timeouts.push(setTimeout(() => { el.style.transform = 'translateX(-50%) scale(1)'; }, 150));
         },
 
         _buildMissDOM(container) {

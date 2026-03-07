@@ -39,6 +39,7 @@ jogos/
   penaltis.js           # Jogo de Penaltis (standalone)
   escorpiao.js          # Jogo Escorpiao (standalone)
   reptil.js             # Jogo Reptil (standalone, IK procedural)
+  pacman.js             # Jogo Pac-Man (standalone)
   joguinhos-modal.js    # Sistema de navegacao (splash → hub → jogo)
 assets/
   sons/                 # Futuros arquivos de audio (se necessario)
@@ -52,6 +53,7 @@ Cada jogo e um IIFE que expoe um objeto global:
 - `window.PenaltisGame` — com metodos `abrir(container)` e `fechar()`
 - `window.EscorpiaoGame` — com metodos `abrir()` e `fechar()`
 - `window.ReptilGame` — com metodos `abrir()` e `fechar()`
+- `window.PacmanGame` — com metodos `abrir()` e `fechar()`
 
 ### Sistema de Telas (joguinhos-modal.js)
 ```
@@ -235,7 +237,7 @@ Ao criar ou modificar jogos, aplicar as 5 dimensoes:
 Formato: `type(scope): descricao em imperativo`
 
 Tipos: `feat` | `fix` | `docs` | `refactor` | `chore` | `perf` | `test`
-Escopos: `penaltis` | `escorpiao` | `reptil` | `hub` | `splash` | `deps` | `infra`
+Escopos: `penaltis` | `escorpiao` | `reptil` | `pacman` | `hub` | `splash` | `deps` | `infra`
 
 Exemplos:
 ```
@@ -273,6 +275,14 @@ refactor(escorpiao): cachear grade em offscreen canvas
 - Visual: wireframe neon verde com glow
 - Controles: mouse/touch, ESC para sair
 - Inspirado em Reptile Interactive Cursor (MIT License)
+
+### Pac-Man (`pacman.js`)
+- Canvas fullscreen, Pac-Man simplificado para criancas
+- Mapa grid 19x21 com paredes, pellets e power pellets
+- 4 fantasmas com IA basica (chase/scatter/scared)
+- 3 fases progressivas, 3 vidas
+- Power pellets ativam modo scared nos fantasmas
+- Controles: mouse/touch para direcionar, ESC para sair
 
 ### Tecnologias Reutilizaveis Entre Jogos
 

@@ -71,6 +71,7 @@
     let jogoAtual = null;
     let splashAnimFrame = null;
     let joseAnimFrame = null;
+    var _splashResizeHandler = null;
 
     // ---- Música da Splash ----
     var _splashAC = null;
@@ -159,6 +160,7 @@
     function pararMusicaSplash() {
         _splashMusicActive = false;
         if (_splashNoteTimer) { clearTimeout(_splashNoteTimer); _splashNoteTimer = null; }
+        if (_splashAC) { _splashAC.close().catch(function () {}); _splashAC = null; }
     }
 
     // ---- Navegacao entre telas ----
@@ -449,6 +451,8 @@
             canvas.height = H;
         }
         resize();
+        if (_splashResizeHandler) window.removeEventListener('resize', _splashResizeHandler);
+        _splashResizeHandler = resize;
         window.addEventListener('resize', resize);
 
         var ctx = canvas.getContext('2d');
@@ -655,6 +659,10 @@
             cancelAnimationFrame(joseAnimFrame);
             joseAnimFrame = null;
         }
+        if (_splashResizeHandler) {
+            window.removeEventListener('resize', _splashResizeHandler);
+            _splashResizeHandler = null;
+        }
         pararMusicaSplash();
     }
 
@@ -686,20 +694,20 @@
         iniciarSplashAnim();
 
         // Musica: resume AudioContext na primeira interacao do usuario
-        // (necessario para mobile onde AC começa suspenso)
-        var primeiraInteracao = false;
+        // (necessario para mobile onde AC comeca suspenso)
         function tentarIniciarMusica() {
-            if (primeiraInteracao) return;
-            if (_splashAC && _splashAC.state === 'suspended' && _splashMusicActive) {
-                primeiraInteracao = true;
-                _splashAC.resume().then(function () {
-                    if (_splashMusicActive && !_splashNoteTimer) _agendarNota(0);
-                });
-            }
+            if (!_splashAC || _splashAC.state !== 'suspended' || !_splashMusicActive) return;
+            // Remover listeners apos primeira interacao bem-sucedida
+            ['click', 'touchstart', 'keydown'].forEach(function (evt) {
+                document.removeEventListener(evt, tentarIniciarMusica);
+            });
+            _splashAC.resume().then(function () {
+                if (_splashMusicActive && !_splashNoteTimer) _agendarNota(0);
+            });
         }
         // Capturar qualquer interacao no documento
         ['click', 'touchstart', 'keydown'].forEach(function (evt) {
-            document.addEventListener(evt, tentarIniciarMusica, { once: false, passive: true });
+            document.addEventListener(evt, tentarIniciarMusica, { passive: true });
         });
     }
 

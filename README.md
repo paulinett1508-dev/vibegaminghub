@@ -29,6 +29,14 @@ Lagarto procedural com inverse kinematics — pernas que caminham de verdade.
 - **Controles:** Mouse/touch para guiar, ESC para sair
 - **Inspirado em:** [Reptile Interactive Cursor](https://github.com/Lokesh-reddy18/Reptile-Cursor) (MIT)
 
+### Pac-Man
+Pac-Man simplificado para criancas em canvas fullscreen.
+
+- **Mapa:** Grid 19x21 com paredes, pellets e power pellets
+- **Fantasmas:** 4 fantasmas com IA basica (chase/scatter/scared)
+- **Fases:** 3 fases progressivas, 3 vidas
+- **Controles:** Mouse/touch para direcionar, ESC para sair
+
 ## Como Usar
 
 ### Demo rapida
@@ -44,6 +52,7 @@ Abra `index.html` no navegador (ou acesse via Vercel).
 <script src="jogos/penaltis.js"></script>
 <script src="jogos/escorpiao.js"></script>
 <script src="jogos/reptil.js"></script>
+<script src="jogos/pacman.js"></script>
 <script src="jogos/joguinhos-modal.js"></script>
 ```
 
@@ -64,6 +73,10 @@ window.EscorpiaoGame.fechar();
 // Reptil direto (fullscreen)
 window.ReptilGame.abrir();
 window.ReptilGame.fechar();
+
+// Pac-Man direto (fullscreen)
+window.PacmanGame.abrir();
+window.PacmanGame.fechar();
 ```
 
 ## Estrutura
@@ -75,6 +88,7 @@ jogos/
   penaltis.js           # Jogo de Penaltis standalone
   escorpiao.js          # Jogo Escorpiao standalone
   reptil.js             # Jogo Reptil standalone (IK procedural)
+  pacman.js             # Jogo Pac-Man standalone
   joguinhos-modal.js    # Modal de selecao de jogos
 assets/
   sons/                 # Futuros arquivos de audio

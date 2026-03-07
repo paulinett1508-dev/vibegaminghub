@@ -428,7 +428,7 @@
         var gain = ctx.createGain();
         var vol = Math.min(0.15, velocidade * 0.03);
         gain.gain.setValueAtTime(vol, ctx.currentTime);
-        gain.gain.exponentialDecayTo && gain.gain.exponentialDecayTo(0.001, ctx.currentTime + duration);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
         source.connect(filter);
         filter.connect(gain);
@@ -568,7 +568,7 @@
             overlay.addEventListener('touchstart', function (e) {
                 self.mouseX = e.touches[0].clientX;
                 self.mouseY = e.touches[0].clientY;
-            }, { passive: true });
+            }, { passive: false });
 
             // ESC fecha
             self._onKey = function (e) {
