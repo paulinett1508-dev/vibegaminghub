@@ -271,10 +271,20 @@
                 { x: 9, y: 8 },
             ];
             for (var i = 0; i < 4; i++) {
+                // Direcao inicial: mover em direcao a saida (x=9) primeiro
+                var gx = ghostPositions[i].x;
+                var initialDir;
+                if (gx < 9) {
+                    initialDir = { x: 1, y: 0 }; // Direita em direcao a saida
+                } else if (gx > 9) {
+                    initialDir = { x: -1, y: 0 }; // Esquerda em direcao a saida
+                } else {
+                    initialDir = { x: 0, y: -1 }; // Ja na saida, sobe
+                }
                 self.ghosts.push({
                     x: ghostPositions[i].x * CONF.CELL + CONF.CELL / 2,
                     y: ghostPositions[i].y * CONF.CELL + CONF.CELL / 2,
-                    dir: { x: 0, y: -1 },
+                    dir: initialDir,
                     color: CONF.GHOST_COLORS[i],
                     scared: false,
                 });
@@ -609,9 +619,18 @@
                             { x: 9, y: 8 },
                         ];
                         for (var j = 0; j < this.ghosts.length; j++) {
-                            this.ghosts[j].x = ghostPositions[j].x * cell + cell / 2;
+                            var gx = ghostPositions[j].x;
+                            this.ghosts[j].x = gx * cell + cell / 2;
                             this.ghosts[j].y = ghostPositions[j].y * cell + cell / 2;
                             this.ghosts[j].scared = false;
+                            // Direcao inicial em direcao a saida (x=9)
+                            if (gx < 9) {
+                                this.ghosts[j].dir = { x: 1, y: 0 };
+                            } else if (gx > 9) {
+                                this.ghosts[j].dir = { x: -1, y: 0 };
+                            } else {
+                                this.ghosts[j].dir = { x: 0, y: -1 };
+                            }
                         }
                         this.powerMode = false;
                         if (this.powerTimer) {
@@ -704,6 +723,12 @@
                         }
                     }
                     ghost.dir = valid[0];
+                } else {
+                    // Fallback: se nenhuma direcao valida, permitir reverso
+                    var reverseDir = { x: -ghost.dir.x, y: -ghost.dir.y };
+                    if (this._podeAndarGhost(ghost.x, ghost.y, reverseDir)) {
+                        ghost.dir = reverseDir;
+                    }
                 }
             }
 
@@ -787,9 +812,18 @@
                 { x: 9, y: 8 },
             ];
             for (var i = 0; i < this.ghosts.length; i++) {
-                this.ghosts[i].x = ghostPositions[i].x * cell + cell / 2;
+                var gx = ghostPositions[i].x;
+                this.ghosts[i].x = gx * cell + cell / 2;
                 this.ghosts[i].y = ghostPositions[i].y * cell + cell / 2;
                 this.ghosts[i].scared = false;
+                // Direcao inicial em direcao a saida (x=9)
+                if (gx < 9) {
+                    this.ghosts[i].dir = { x: 1, y: 0 };
+                } else if (gx > 9) {
+                    this.ghosts[i].dir = { x: -1, y: 0 };
+                } else {
+                    this.ghosts[i].dir = { x: 0, y: -1 };
+                }
             }
         },
 
@@ -1026,9 +1060,18 @@
                 { x: 9, y: 8 },
             ];
             for (var i = 0; i < this.ghosts.length; i++) {
-                this.ghosts[i].x = ghostPositions[i].x * cell + cell / 2;
+                var gx = ghostPositions[i].x;
+                this.ghosts[i].x = gx * cell + cell / 2;
                 this.ghosts[i].y = ghostPositions[i].y * cell + cell / 2;
                 this.ghosts[i].scared = false;
+                // Direcao inicial em direcao a saida (x=9)
+                if (gx < 9) {
+                    this.ghosts[i].dir = { x: 1, y: 0 };
+                } else if (gx > 9) {
+                    this.ghosts[i].dir = { x: -1, y: 0 };
+                } else {
+                    this.ghosts[i].dir = { x: 0, y: -1 };
+                }
             }
 
             // Atualizar displays
