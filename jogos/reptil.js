@@ -1,5 +1,5 @@
 // =====================================================================
-// reptil.js — Jogo Reptil Standalone v1.1
+// reptil.js — Jogo Reptil Standalone v1.2
 // =====================================================================
 // Inspirado em Reptile Interactive Cursor (MIT License)
 // Reescrito com: IIFE, IK esqueletica, visual rico, touch, cleanup
@@ -18,7 +18,7 @@
         GLOW: 'rgba(0,255,136,0.5)',
         EYE: '#0f172a',
         EYE_GLOW: '#00ff88',
-        HEAD_R: 3,
+        HEAD_R: 4,
         LINE_W: 2.2,
     };
 
@@ -357,9 +357,11 @@
             }
         }
 
-        // Cauda (mais rigida para nao enrolar)
+        // Cauda (flexivel e elegante, movimento suave)
         for (var i = 0; i < tailLen; i++) {
-            spinal = new Segment(spinal, s * 4, 0, Math.PI / 5, 3);
+            // Rigidez aumenta gradualmente na ponta para evitar chicotear
+            var tailStiff = 1.3 + (i / tailLen) * 0.5;
+            spinal = new Segment(spinal, s * 3.5, 0, Math.PI / 2.5, tailStiff);
             for (var side = -1; side <= 1; side += 2) {
                 var node = new Segment(spinal, s * 3, side, 0.1, 2);
                 for (var k = 0; k < 3; k++) {
@@ -371,6 +373,77 @@
         return critter;
     }
 
+    // ---- Sistema de Som ----
+
+    function SomReptil() {
+        this.audioCtx = null;
+        this.lastSoundTime = 0;
+        this.soundInterval = 80; // ms entre sons
+    }
+
+    SomReptil.prototype.init = function () {
+        try {
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            this.audioCtx = null;
+        }
+    };
+
+    SomReptil.prototype.tocarRastejo = function (velocidade) {
+        if (!this.audioCtx || velocidade < 0.5) return;
+
+        var now = Date.now();
+        if (now - this.lastSoundTime < this.soundInterval) return;
+        this.lastSoundTime = now;
+
+        var ctx = this.audioCtx;
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // Som de arrasto/escamas - ruido filtrado
+        var duration = 0.04 + Math.random() * 0.03;
+        var bufferSize = Math.floor(ctx.sampleRate * duration);
+        var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        var data = buffer.getChannelData(0);
+
+        // Ruido rosa (mais grave, como escamas arrastando)
+        var b0 = 0, b1 = 0, b2 = 0;
+        for (var i = 0; i < bufferSize; i++) {
+            var white = Math.random() * 2 - 1;
+            b0 = 0.99765 * b0 + white * 0.0990460;
+            b1 = 0.96300 * b1 + white * 0.2965164;
+            b2 = 0.57000 * b2 + white * 1.0526913;
+            data[i] = (b0 + b1 + b2 + white * 0.1848) * 0.08;
+        }
+
+        var source = ctx.createBufferSource();
+        source.buffer = buffer;
+
+        // Filtro passa-baixa para som mais suave
+        var filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 800 + velocidade * 200;
+        filter.Q.value = 1;
+
+        // Volume baseado na velocidade
+        var gain = ctx.createGain();
+        var vol = Math.min(0.15, velocidade * 0.03);
+        gain.gain.setValueAtTime(vol, ctx.currentTime);
+        gain.gain.exponentialDecayTo && gain.gain.exponentialDecayTo(0.001, ctx.currentTime + duration);
+
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        source.start();
+        source.stop(ctx.currentTime + duration);
+    };
+
+    SomReptil.prototype.fechar = function () {
+        if (this.audioCtx) {
+            this.audioCtx.close().catch(function () {});
+            this.audioCtx = null;
+        }
+    };
+
     // ---- Game Object ----
 
     var ReptilGame = {
@@ -380,6 +453,7 @@
         ctx: null,
         mouseX: 0,
         mouseY: 0,
+        som: null,
         _onKey: null,
         _onResize: null,
 
@@ -391,11 +465,15 @@
             self.mouseX = W / 2;
             self.mouseY = H / 2;
 
-            // Gerar lagarto aleatorio (menor para nao se enrolar em telas mobile)
-            var legCount = 2 + Math.floor(Math.random() * 3); // 2-4 pares
-            var sizeScale = 3 / Math.sqrt(legCount);
-            var tailLen = 4 + Math.floor(Math.random() * legCount * 2);
+            // Gerar lagarto aleatorio (tamanho moderado, cauda longa e bonita)
+            var legCount = 2 + Math.floor(Math.random() * 2); // 2-3 pares
+            var sizeScale = 4 / Math.sqrt(legCount);
+            var tailLen = 10 + Math.floor(Math.random() * 6); // cauda longa e elegante
             self.critter = buildLizard(W / 2, H / 2, sizeScale, legCount, tailLen);
+
+            // Inicializar som
+            self.som = new SomReptil();
+            self.som.init();
 
             // Overlay
             var overlay = document.createElement('div');
@@ -529,6 +607,10 @@
                 window.removeEventListener('resize', this._onResize);
                 this._onResize = null;
             }
+            if (this.som) {
+                this.som.fechar();
+                this.som = null;
+            }
             var overlay = document.getElementById('reptil-overlay');
             if (overlay) overlay.remove();
             this.ctx = null;
@@ -557,6 +639,11 @@
 
             // Atualizar fisica
             this.critter.follow(this.mouseX, this.mouseY);
+
+            // Som de rastejamento baseado na velocidade
+            if (this.som && this.critter.speed > 0) {
+                this.som.tocarRastejo(this.critter.speed);
+            }
 
             // Desenhar criatura
             ctx.strokeStyle = CONF.STROKE;
