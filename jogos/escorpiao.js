@@ -363,10 +363,15 @@
         _passarDeFase() {
             this._bloqueado = true;
             this.comidas    = [];
-            this.spawnTimer = 0;
+
+            // Volta ao tamanho inicial para nao travar ao comer na nova fase
+            this.segs.splice(CONF.INITIAL_SEGS);
 
             const anterior = this.faseIdx;
             this.faseIdx   = Math.min(this.faseIdx + 1, CONF.FASES.length - 1);
+
+            // Primeira comida aparece rapido apos a transicao
+            this.spawnTimer = this._getFase().spawnInterval - 80;
 
             const txt = anterior < this.faseIdx
                 ? `Fase ${this.faseIdx + 1}!`
