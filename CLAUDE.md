@@ -10,13 +10,21 @@ Criancas pequenas (~2-5 anos), muitas ainda nao sabem ler.
 
 ## Tech Stack
 
-- **Runtime:** Browser (Vanilla JS, zero dependencias)
+- **Runtime:** Browser (Vanilla JS, sem frameworks/bundlers)
 - **Rendering:** Canvas 2D API
 - **Styling:** CSS custom properties (design tokens em `index.html`) + Google Fonts
 - **Icons:** Material Icons (via CDN)
-- **Audio:** Web Audio API (sons gerados programaticamente, zero arquivos)
+- **Audio:** Web Audio API (preferencia para sons programaticos; arquivos de audio permitidos em `assets/sons/`)
+- **Assets:** Sprites, spritesheets, tilemaps e outros arquivos de imagem/audio sao **permitidos** em `assets/`
 - **Deploy:** Vercel (site estatico, sem build step)
 - **Quality Framework:** agnostic-core (submodule `.agnostic-core/`)
+
+### Uso de Assets Externos
+- Sprites e imagens: salvar em `assets/sprites/<nome-do-jogo>/`
+- Audio: salvar em `assets/sons/`
+- Fontes/libs leves via CDN sao permitidas (ex: spritesheets publicas, Howler.js)
+- Preferir assets com licenca permissiva (MIT, CC0, dominio publico)
+- Documentar origem e licenca em `docs/ORIGEM.md`
 
 ## Deploy (Vercel)
 
@@ -41,11 +49,15 @@ jogos/
   reptil.js             # Jogo Reptil (standalone, IK procedural)
   pacman.js             # Jogo Pac-Man (standalone)
   tamandua.js           # Jogo Tamandua Runner (standalone, IK procedural)
+  sonic.js              # Jogo Sonic Runner (standalone)
   joguinhos-modal.js    # Sistema de navegacao (splash → hub → jogo)
 assets/
-  sons/                 # Futuros arquivos de audio (se necessario)
+  sons/                 # Arquivos de audio (.ogg, .mp3, .wav)
+  sprites/              # Spritesheets e imagens por jogo
+    sonic/              # ex: sonic-sprites.png, tiles-ghz.png
+    pacman/             # ex: ghosts.png
 docs/
-  ORIGEM.md             # Referencia do codigo original
+  ORIGEM.md             # Referencia do codigo original e licencas dos assets
 .agnostic-core/         # Submodule: framework de qualidade
 ```
 
@@ -90,8 +102,9 @@ Para adicionar um jogo ao hub, adicionar entrada no array `JOGOS` em `joguinhos-
 ## Coding Standards
 
 ### Regras Gerais
-- **Zero dependencias** — Nao usar frameworks, libs, bundlers
-- **Vanilla JS puro** — Sem React, Vue, jQuery, etc.
+- **Sem bundlers/transpilers** — Nao usar Webpack, Vite, Babel, etc. O codigo roda direto no browser
+- **Sem frameworks de UI** — Sem React, Vue, Angular, jQuery
+- **Libs leves via CDN sao permitidas** — ex: Howler.js para audio, LDtk loader, etc.
 - **IIFE pattern** — Cada jogo encapsulado em IIFE
 - **Exposicao global** — APIs expostas via `window.NomeDoJogo`
 
@@ -112,11 +125,12 @@ Para adicionar um jogo ao hub, adicionar entrada no array `JOGOS` em `joguinhos-
 - **Feedback imediato** — Todo toque deve produzir som + animacao visual
 - **Cores vibrantes** — Alto contraste, cores alegres
 
-### Audio (Web Audio API)
-- Sons gerados **programaticamente** via `AudioContext` + `OscillatorNode`
-- Zero dependencia de arquivos de audio externos
+### Audio
+- **Web Audio API** para sons sintetizados simples (cliques, efeitos curtos)
+- **Arquivos de audio permitidos** em `assets/sons/` — usar quando qualidade importa (musica, efeitos ricos)
+- **Howler.js via CDN** permitido para gerenciamento de audio mais robusto
 - Todo jogo deve ter feedback sonoro em interacoes (clique, acerto, erro, fim)
-- **Cleanup obrigatorio** — fechar/suspender `AudioContext` ao fechar jogo
+- **Cleanup obrigatorio** — fechar/suspender `AudioContext` e parar sons ao fechar jogo
 - Padrao: criar helper de som dentro de cada IIFE, nao como global
 
 ### Canvas
@@ -239,7 +253,7 @@ Ao criar ou modificar jogos, aplicar as 5 dimensoes:
 Formato: `type(scope): descricao em imperativo`
 
 Tipos: `feat` | `fix` | `docs` | `refactor` | `chore` | `perf` | `test`
-Escopos: `penaltis` | `escorpiao` | `reptil` | `pacman` | `tamandua` | `hub` | `splash` | `deps` | `infra`
+Escopos: `penaltis` | `escorpiao` | `reptil` | `pacman` | `tamandua` | `sonic` | `hub` | `splash` | `deps` | `infra`
 
 Exemplos:
 ```

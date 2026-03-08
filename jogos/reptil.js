@@ -14,17 +14,42 @@
     var _low = function () { return _P().low; };
 
     // ---- Configuracao ----
-    var CONF = {
-        BG: '#050a14',
-        GRID: '#0a1628',
-        STROKE: '#00ff88',
-        STROKE_DIM: 'rgba(0,255,136,0.35)',
-        GLOW: 'rgba(0,255,136,0.5)',
-        EYE: '#0f172a',
-        EYE_GLOW: '#00ff88',
-        HEAD_R: 4,
-        LINE_W: 2.2,
+    var CONF_LACRAIA = {
+        BG:           '#050a14',
+        GRID:         '#0a1420',
+        BODY_STROKE:  '#f97316',
+        BODY_FILL:    '#1a0800',
+        BODY_FILL2:   '#2a1200',
+        LEG_STROKE:   '#c2410c',
+        GLOW:         'rgba(249,115,22,0.6)',
+        EYE:          '#ff3333',
+        ANT:          '#fbbf24',
+        HEAD_R:       11,
+        LINE_W:       1.8,
+        STROKE:       '#f97316',
+        STROKE_DIM:   'rgba(249,115,22,0.4)',
+        EYE_GLOW:     '#ff3333',
     };
+
+    var CONF_LAGARTO = {
+        BG:           '#050a14',
+        GRID:         '#0a1628',
+        BODY_STROKE:  '#00ff88',
+        BODY_FILL:    '#050a14',
+        BODY_FILL2:   '#0a1628',
+        TAIL_FILL:    '#021a0c',
+        LEG_STROKE:   'rgba(0,255,136,0.55)',
+        GLOW:         'rgba(0,255,136,0.5)',
+        EYE:          '#0f172a',
+        ANT:          '#00ff88',
+        HEAD_R:       6,
+        LINE_W:       2.0,
+        STROKE:       '#00ff88',
+        STROKE_DIM:   'rgba(0,255,136,0.35)',
+        EYE_GLOW:     '#00ff88',
+    };
+
+    var CONF = CONF_LACRAIA; // ativo, trocado em abrir()
 
     // ---- Classes de IK ----
 
@@ -71,10 +96,74 @@
     };
 
     Segment.prototype.draw = function (ctx, iter) {
-        ctx.beginPath();
-        ctx.moveTo(this.parent.x, this.parent.y);
-        ctx.lineTo(this.x, this.y);
-        ctx.stroke();
+        if (this.segType === 'body') {
+            var dx = this.x - this.parent.x;
+            var dy = this.y - this.parent.y;
+            var angle = Math.atan2(dy, dx);
+            var len = Math.sqrt(dx * dx + dy * dy);
+            var cx = (this.x + this.parent.x) / 2;
+            var cy = (this.y + this.parent.y) / 2;
+            var bw = this.bw || 8;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, len * 0.48, bw, 0, 0, Math.PI * 2);
+            ctx.fillStyle = this._fillAlt ? CONF.BODY_FILL2 : CONF.BODY_FILL;
+            ctx.fill();
+            ctx.strokeStyle = CONF.BODY_STROKE;
+            ctx.lineWidth = CONF.LINE_W;
+            ctx.stroke();
+            // Linha central do segmento
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(-len * 0.38, 0);
+            ctx.lineTo(len * 0.38, 0);
+            ctx.stroke();
+            ctx.restore();
+        } else if (this.segType === 'tail') {
+            var dx = this.x - this.parent.x;
+            var dy = this.y - this.parent.y;
+            var angle = Math.atan2(dy, dx);
+            var len = Math.sqrt(dx * dx + dy * dy);
+            var cx = (this.x + this.parent.x) / 2;
+            var cy = (this.y + this.parent.y) / 2;
+            var tw = this.tailW || 2;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, len * 0.52, tw, 0, 0, Math.PI * 2);
+            ctx.fillStyle = CONF.TAIL_FILL || CONF.BODY_FILL;
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        } else if (this.segType === 'leg') {
+            ctx.save();
+            ctx.strokeStyle = CONF.LEG_STROKE;
+            ctx.lineWidth = 1.3;
+            ctx.globalAlpha = 0.85;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(this.parent.x, this.parent.y);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+            // Pontinha do pe
+            if (this.children.length === 0) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+                ctx.fillStyle = CONF.LEG_STROKE;
+                ctx.fill();
+            }
+            ctx.restore();
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(this.parent.x, this.parent.y);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+        }
 
         if (iter) {
             for (var i = 0; i < this.children.length; i++) {
@@ -276,33 +365,112 @@
     };
 
     Creature.prototype.draw = function (ctx, iter) {
-        // Cabeca: triangulo direcional
+        var angle = this.absAngle;
         var r = CONF.HEAD_R;
+
+        // Lagarto: cabeca triangular original
+        if (this.isLizard) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r,
+                Math.PI / 4 + angle, 7 * Math.PI / 4 + angle);
+            ctx.moveTo(
+                this.x + r * Math.cos(7 * Math.PI / 4 + angle),
+                this.y + r * Math.sin(7 * Math.PI / 4 + angle));
+            ctx.lineTo(
+                this.x + r * Math.cos(angle) * Math.SQRT2,
+                this.y + r * Math.sin(angle) * Math.SQRT2);
+            ctx.lineTo(
+                this.x + r * Math.cos(Math.PI / 4 + angle),
+                this.y + r * Math.sin(Math.PI / 4 + angle));
+            ctx.stroke();
+            for (var side = -1; side <= 1; side += 2) {
+                var eyeAngle = angle + side * 0.6;
+                var ex = this.x + r * 0.7 * Math.cos(eyeAngle);
+                var ey = this.y + r * 0.7 * Math.sin(eyeAngle);
+                ctx.beginPath();
+                ctx.arc(ex, ey, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = CONF.EYE_GLOW;
+                ctx.fill();
+            }
+            if (iter) {
+                for (var i = 0; i < this.children.length; i++) {
+                    this.children[i].draw(ctx, true);
+                }
+            }
+            return;
+        }
+
+        var t = Date.now() * 0.0018;
+
+        // Antenas (bezier animadas)
+        for (var side = -1; side <= 1; side += 2) {
+            var baseAngle = angle + side * 0.32;
+            var bx = this.x + Math.cos(baseAngle) * r * 1.1;
+            var by = this.y + Math.sin(baseAngle) * r * 1.1;
+            var wiggle = Math.sin(t * 1.3 + side * 2.1) * 13;
+            var antLen = 34;
+            var perp = angle + Math.PI / 2;
+            var ex = bx + Math.cos(angle + side * 0.65) * antLen + Math.cos(perp) * wiggle;
+            var ey = by + Math.sin(angle + side * 0.65) * antLen + Math.sin(perp) * wiggle;
+            var cpx = bx + Math.cos(angle + side * 0.48) * antLen * 0.52;
+            var cpy = by + Math.sin(angle + side * 0.48) * antLen * 0.52;
+
+            ctx.save();
+            ctx.strokeStyle = CONF.ANT;
+            ctx.lineWidth = 1.3;
+            ctx.lineCap = 'round';
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            ctx.quadraticCurveTo(cpx, cpy, ex, ey);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(ex, ey, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = CONF.ANT;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Cabeca (escudo oval)
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
         ctx.beginPath();
-        ctx.arc(this.x, this.y, r,
-            Math.PI / 4 + this.absAngle,
-            7 * Math.PI / 4 + this.absAngle);
-        ctx.moveTo(
-            this.x + r * Math.cos(7 * Math.PI / 4 + this.absAngle),
-            this.y + r * Math.sin(7 * Math.PI / 4 + this.absAngle));
-        ctx.lineTo(
-            this.x + r * Math.cos(this.absAngle) * Math.SQRT2,
-            this.y + r * Math.sin(this.absAngle) * Math.SQRT2);
-        ctx.lineTo(
-            this.x + r * Math.cos(Math.PI / 4 + this.absAngle),
-            this.y + r * Math.sin(Math.PI / 4 + this.absAngle));
+        ctx.ellipse(0, 0, r * 1.55, r * 1.05, 0, 0, Math.PI * 2);
+        ctx.fillStyle = CONF.BODY_FILL2;
+        ctx.fill();
+        ctx.strokeStyle = CONF.BODY_STROKE;
+        ctx.lineWidth = CONF.LINE_W;
         ctx.stroke();
 
-        // Olhos
+        // Olhos compostos
         for (var side = -1; side <= 1; side += 2) {
-            var eyeAngle = this.absAngle + side * 0.6;
-            var ex = this.x + r * 0.7 * Math.cos(eyeAngle);
-            var ey = this.y + r * 0.7 * Math.sin(eyeAngle);
             ctx.beginPath();
-            ctx.arc(ex, ey, 1.5, 0, Math.PI * 2);
-            ctx.fillStyle = CONF.EYE_GLOW;
+            ctx.arc(r * 0.52, side * r * 0.68, r * 0.34, 0, Math.PI * 2);
+            ctx.fillStyle = CONF.EYE;
+            ctx.fill();
+            // Brilho
+            ctx.beginPath();
+            ctx.arc(r * 0.62, side * r * 0.60, r * 0.1, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
             ctx.fill();
         }
+
+        // Mandibulas
+        for (var side = -1; side <= 1; side += 2) {
+            ctx.strokeStyle = CONF.BODY_STROKE;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(r * 1.25, side * r * 0.22);
+            ctx.lineTo(r * 2.2, side * r * 0.58);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(r * 2.2, side * r * 0.58, 2, 0, Math.PI * 2);
+            ctx.fillStyle = CONF.BODY_STROKE;
+            ctx.fill();
+        }
+
+        ctx.restore();
 
         if (iter) {
             for (var i = 0; i < this.children.length; i++) {
@@ -311,20 +479,90 @@
         }
     };
 
-    // ---- Montar lagarto procedural ----
+    // Traversal para dois passes de render (pernas abaixo, corpo acima)
+    Creature.prototype._drawSegPass = function (ctx, seg, pass) {
+        if (seg.segType === pass) {
+            seg.draw(ctx, false);
+        }
+        for (var i = 0; i < seg.children.length; i++) {
+            this._drawSegPass(ctx, seg.children[i], pass);
+        }
+    };
+
+    Creature.prototype.drawLegs = function (ctx) {
+        for (var i = 0; i < this.children.length; i++) {
+            this._drawSegPass(ctx, this.children[i], 'leg');
+        }
+    };
+
+    Creature.prototype.drawBody = function (ctx) {
+        for (var i = 0; i < this.children.length; i++) {
+            this._drawSegPass(ctx, this.children[i], 'body');
+        }
+    };
+
+    // ---- Montar lacraia procedural ----
+
+    function buildCentipede(cx, cy) {
+        var s = 1;
+        var legPairs = _low() ? 6 : 8;
+
+        // Fisica: mais lenta e sinuosa que o lagarto
+        var critter = new Creature(cx, cy, 0,
+            4.5, 1.0, 0.22, 10, 0.32, 0.045, 0.36, 0.18);
+
+        var spinal = critter;
+
+        // Primeiro segmento (pescoco curto)
+        var neck = new Segment(spinal, s * 13, 0, Math.PI / 5, 3.2);
+        neck.segType = 'body';
+        neck.bw = 7;
+        spinal = neck;
+
+        // Segmentos do corpo com pernas
+        for (var i = 0; i < legPairs; i++) {
+            var bw = 7 + Math.round(Math.sin(i / (legPairs - 1) * Math.PI) * 4);
+            var seg = new Segment(spinal, s * 14, 0, Math.PI / 4, 3.0);
+            seg.segType = 'body';
+            seg.bw = bw;
+            seg._fillAlt = (i % 2 === 1);
+            spinal = seg;
+
+            // Pernas: 2 segmentos por lado
+            for (var side = -1; side <= 1; side += 2) {
+                var hip = new Segment(spinal, s * 11, side * Math.PI / 2, 0.5, 2.8);
+                hip.segType = 'leg';
+                var foot = new Segment(hip, s * 11, -side * 0.45, Math.PI * 0.65, 2.2);
+                foot.segType = 'leg';
+                new LegSystem(foot, 2, s * 9, critter);
+            }
+        }
+
+        // Cauda afilada
+        for (var i = 0; i < 3; i++) {
+            var tailSeg = new Segment(spinal, s * 13, 0, Math.PI / 3.5, 3.0 + i * 0.5);
+            tailSeg.segType = 'body';
+            tailSeg.bw = Math.max(2, 6 - i * 1.8);
+            spinal = tailSeg;
+        }
+
+        return critter;
+    }
+
+    // ---- Montar lagarto procedural (mantido para referencia) ----
 
     function buildLizard(cx, cy, sizeScale, legCount, tailLen) {
         var s = sizeScale;
         var critter = new Creature(cx, cy, 0,
-            s * 8, s * 1.5, 0.3, 12, 0.4, 0.06, 0.4, 0.2);
+            s * 7, s * 1.4, 0.28, 10, 0.38, 0.055, 0.38, 0.18);
 
         var spinal = critter;
 
-        // Pescoco (4 segmentos com costelas - mais rigido)
+        // Pescoco (4 segmentos)
         for (var i = 0; i < 4; i++) {
-            spinal = new Segment(spinal, s * 4, 0, Math.PI / 4, 2.5);
+            spinal = new Segment(spinal, s * 4.5, 0, Math.PI / 4, 2.5);
             for (var side = -1; side <= 1; side += 2) {
-                var node = new Segment(spinal, s * 3, side, 0.1, 2);
+                var node = new Segment(spinal, s * 3.5, side, 0.1, 2);
                 for (var k = 0; k < 3; k++) {
                     node = new Segment(node, s * 0.1, -side * 0.1, 0.1, 2);
                 }
@@ -334,11 +572,10 @@
         // Torso + pernas
         for (var i = 0; i < legCount; i++) {
             if (i > 0) {
-                // Vertebras entre pernas (menos e mais rigidas)
                 for (var ii = 0; ii < 4; ii++) {
-                    spinal = new Segment(spinal, s * 4, 0, Math.PI / 4, 2.5);
+                    spinal = new Segment(spinal, s * 4.5, 0, Math.PI / 4, 2.5);
                     for (var side = -1; side <= 1; side += 2) {
-                        var node = new Segment(spinal, s * 3, side * Math.PI / 2, 0.1, 1.5);
+                        var node = new Segment(spinal, s * 3.5, side * Math.PI / 2, 0.1, 1.5);
                         for (var k = 0; k < 3; k++) {
                             node = new Segment(node, s * 3, -side * 0.3, 0.1, 2);
                         }
@@ -346,34 +583,27 @@
                 }
             }
 
-            // Pernas (ombro/quadril + humero + antebraco + dedos)
+            // Pernas (quadril + humero + antebraco + dedos)
             for (var side = -1; side <= 1; side += 2) {
-                var hip = new Segment(spinal, s * 12, side * 0.785, 0, 8);
-                var humerus = new Segment(hip, s * 16, -side * 0.785, Math.PI * 2, 1);
-                var forearm = new Segment(humerus, s * 16, side * Math.PI / 2, Math.PI, 2);
-
-                // Dedos
+                var hip = new Segment(spinal, s * 13, side * 0.785, 0, 8);
+                var humerus = new Segment(hip, s * 17, -side * 0.785, Math.PI * 2, 1);
+                var forearm = new Segment(humerus, s * 17, side * Math.PI / 2, Math.PI, 2);
                 for (var f = 0; f < 4; f++) {
-                    new Segment(forearm, s * 4, (f / 3 - 0.5) * Math.PI / 2, 0.1, 4);
+                    new Segment(forearm, s * 5, (f / 3 - 0.5) * Math.PI / 2, 0.1, 4);
                 }
-
-                new LegSystem(forearm, 3, s * 12, critter);
+                new LegSystem(forearm, 3, s * 13, critter);
             }
         }
 
-        // Cauda (flexivel e elegante, movimento suave)
+        // Cauda estilizada: elipses afiladas sem galhos laterais
         for (var i = 0; i < tailLen; i++) {
-            // Rigidez aumenta gradualmente na ponta para evitar chicotear
-            var tailStiff = 1.3 + (i / tailLen) * 0.5;
-            spinal = new Segment(spinal, s * 3.5, 0, Math.PI / 2.5, tailStiff);
-            for (var side = -1; side <= 1; side += 2) {
-                var node = new Segment(spinal, s * 3, side, 0.1, 2);
-                for (var k = 0; k < 3; k++) {
-                    node = new Segment(node, s * 3 * (tailLen - i) / tailLen, -side * 0.1, 0.1, 2);
-                }
-            }
+            var tailStiff = 1.2 + (i / tailLen) * 0.9;
+            spinal = new Segment(spinal, s * 4.8, 0, Math.PI / 2.2, tailStiff);
+            spinal.segType = 'tail';
+            spinal.tailW = Math.max(1.2, 9 - (i / tailLen) * 8.2);
         }
 
+        critter.isLizard = true;
         return critter;
     }
 
@@ -463,19 +693,25 @@
         _onKey: null,
         _onResize: null,
 
-        abrir: function () {
+        abrir: function (tipo) {
             var self = this;
             var W = window.innerWidth;
             var H = window.innerHeight;
 
             self.mouseX = W / 2;
             self.mouseY = H / 2;
+            self._tipo = tipo || 'lacraia';
 
-            // Gerar lagarto aleatorio (reduzido em low-end)
-            var legCount = _low() ? 2 : 2 + Math.floor(Math.random() * 2); // 2 pares em low-end
-            var sizeScale = 4 / Math.sqrt(legCount);
-            var tailLen = _low() ? 8 : 10 + Math.floor(Math.random() * 6);
-            self.critter = buildLizard(W / 2, H / 2, sizeScale, legCount, tailLen);
+            // Trocar config de cores e gerar criatura
+            if (self._tipo === 'lagarto') {
+                CONF = CONF_LAGARTO;
+                var legCount = _low() ? 2 : 2 + Math.floor(Math.random() * 2);
+                var tailLen = _low() ? 12 : 16 + Math.floor(Math.random() * 4);
+                self.critter = buildLizard(W / 2, H / 2, 3.2, legCount, tailLen);
+            } else {
+                CONF = CONF_LACRAIA;
+                self.critter = buildCentipede(W / 2, H / 2);
+            }
 
             // Inicializar som
             self.som = new SomReptil();
@@ -548,7 +784,7 @@
                 'transition:opacity 1.5s',
                 'user-select:none',
             ].join(';');
-            label.textContent = 'Mova para guiar o reptil  |  ESC para sair';
+            label.textContent = (self._tipo === 'lagarto' ? 'Mova para guiar o lagarto' : 'Mova para guiar a lacraia') + '  |  ESC para sair';
 
             overlay.appendChild(canvas);
             overlay.appendChild(closeBtn);
@@ -652,20 +888,48 @@
                 this.som.tocarRastejo(this.critter.speed);
             }
 
-            // Desenhar criatura
-            ctx.strokeStyle = CONF.STROKE;
-            ctx.lineWidth = CONF.LINE_W;
             ctx.lineCap = 'round';
 
-            // Glow sutil (desligado em low-end)
-            if (!_low()) {
-                ctx.shadowColor = CONF.GLOW;
-                ctx.shadowBlur = 6;
+            if (this._tipo === 'lagarto') {
+                // Render original: linha unica verde neon
+                ctx.strokeStyle = CONF.STROKE;
+                ctx.lineWidth = CONF.LINE_W;
+                if (!_low()) { ctx.shadowColor = CONF.GLOW; ctx.shadowBlur = 6; }
+                this.critter.draw(ctx, true);
+                ctx.shadowBlur = 0;
+            } else {
+                // Passe 1: pernas (abaixo do corpo)
+                ctx.strokeStyle = CONF.LEG_STROKE;
+                ctx.lineWidth = 1.3;
+                if (!_low()) { ctx.shadowColor = 'rgba(194,65,12,0.3)'; ctx.shadowBlur = 3; }
+                this.critter.drawLegs(ctx);
+                ctx.shadowBlur = 0;
+
+                // Passe 2: corpo (acima das pernas)
+                ctx.strokeStyle = CONF.BODY_STROKE;
+                ctx.lineWidth = CONF.LINE_W;
+                if (!_low()) { ctx.shadowColor = CONF.GLOW; ctx.shadowBlur = 10; }
+                this.critter.drawBody(ctx);
+
+                // Cabeca + antenas (sem recursao nos filhos)
+                this.critter.draw(ctx, false);
+                ctx.shadowBlur = 0;
             }
 
-            this.critter.draw(ctx, true);
-
-            ctx.shadowBlur = 0;
+            // Cursor visivel
+            var mx = this.mouseX, my = this.mouseY;
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(mx, my, 6, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(mx, my, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.restore();
         },
     };
 

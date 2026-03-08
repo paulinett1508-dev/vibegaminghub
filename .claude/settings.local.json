@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(claude plugin:*)",
+      "mcp__stitch__get_screen",
+      "WebFetch(domain:stitch.withanthropics.com)",
+      "WebFetch(domain:stitch.anthropic.com)",
+      "WebSearch",
+      "WebFetch(domain:stitch.withgoogle.com)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "stitch"
+  ]
+}
