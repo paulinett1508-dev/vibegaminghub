@@ -379,20 +379,27 @@
 
         // Barra de progresso e auto-fechar
         setTimeout(function() { bar.style.width = '0'; }, 80);
-        _emBreveTimer = setTimeout(function() { _fecharEmBreve(); }, 5000);
+        _emBreveTimer = setTimeout(function() {
+            _fecharEmBreve();
+            if (window.fecharJoguinhos) window.fecharJoguinhos();
+        }, 5000);
 
-        // Fechar ao tocar
-        ov.addEventListener('click', _fecharEmBreve);
-        ov.addEventListener('touchstart', function(e) { e.preventDefault(); _fecharEmBreve(); }, { passive: false });
+        // Fechar ao tocar → limpa + navega de volta ao hub
+        function fecharETornar() {
+            _fecharEmBreve();
+            if (window.fecharJoguinhos) window.fecharJoguinhos();
+        }
+        ov.addEventListener('click', fecharETornar);
+        ov.addEventListener('touchstart', function(e) { e.preventDefault(); fecharETornar(); }, { passive: false });
     }
 
+    // Apenas limpeza — sem navegação (quem chama decide se navega)
     function _fecharEmBreve() {
         clearTimeout(_emBreveTimer); _emBreveTimer = null;
         if (_emBreveRAF) { cancelAnimationFrame(_emBreveRAF); _emBreveRAF = null; }
         if (_emBreveOv) { _emBreveOv.remove(); _emBreveOv = null; }
         var s = document.getElementById('eb-styles');
         if (s) s.remove();
-        if (window.fecharJoguinhos) window.fecharJoguinhos();
     }
 
     function montarHub() {
