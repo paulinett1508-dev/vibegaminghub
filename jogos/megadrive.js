@@ -24,15 +24,22 @@
     var _onKey   = null;
 
     // Injeta evento de teclado no iframe (srcdoc = mesmo origin)
+    // Emscripten registra listeners no canvas E no window — disparamos nos dois
     function _sendKey(key, code, keyCode, type) {
         if (!_overlay) return;
         var iframe = _overlay.querySelector('iframe');
         if (!iframe || !iframe.contentWindow) return;
         try {
             var win = iframe.contentWindow;
+            var doc = win.document;
             var opts = { key: key, code: code, keyCode: keyCode, which: keyCode, bubbles: true, cancelable: true };
+            var kev = new win.KeyboardEvent(type, opts);
+            // 1. Canvas (onde Emscripten registra os handlers de input)
+            var canvas = doc.querySelector('canvas');
+            if (canvas) canvas.dispatchEvent(kev);
+            // 2. Document e window (fallback)
+            doc.dispatchEvent(new win.KeyboardEvent(type, opts));
             win.dispatchEvent(new win.KeyboardEvent(type, opts));
-            if (win.document) win.document.dispatchEvent(new win.KeyboardEvent(type, opts));
         } catch (e) {}
     }
 
@@ -147,11 +154,12 @@
         iframe.setAttribute('allowfullscreen', '');
         iframe.setAttribute('allow', 'autoplay; gamepad *');
 
+        // zoom e diskDrive nao sao botoes validos nesta versao do EJS
         var ejsButtons = JSON.stringify({
             playPause: false, restart: false, mute: false, settings: false,
             fullscreen: false, saveState: false, loadState: false,
             screenRecord: false, gamepad: false, cheat: false,
-            volume: false, zoom: false, diskDrive: false, netplay: false,
+            volume: false, netplay: false,
             saveSavFiles: false, loadSavFiles: false, quickSave: false,
             quickLoad: false, screenshot: false, cacheManager: false,
             exitEmulation: false,
@@ -163,12 +171,13 @@
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#000;width:100%;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%}',
-            // Gamepad EJS nativo — class names com HYPHEN (versao stable CDN)
-            '.ejs-vgamepad,.ejs-vgamepad-active,.ejs-arrow,.ejs-button{display:none!important}',
-            // Nuclear: esconde qualquer elemento EJS que nao seja canvas
-            '[class^="ejs-"]:not(.ejs-canvas):not(.ejs-canvas-no-pointer){display:none!important}',
-            // Fallback underscore (versoes antigas)
-            '.ejs_virtualGamepad,.ejs_menu_bar,.ejs_menu,.ejs_toolbar{display:none!important}',
+            // Esconde APENAS o gamepad/UI overlay do EJS — NAO o container do jogo
+            '.ejs-vgamepad{display:none!important}',
+            '.ejs-vgamepad-active{display:none!important}',
+            '.ejs-arrow{display:none!important}',
+            '.ejs-button{display:none!important}',
+            '.ejs_virtualGamepad{display:none!important}',
+            '.ejs_menu_bar{display:none!important}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
@@ -178,24 +187,13 @@
             'window.EJS_pathtodata    = ' + JSON.stringify(EJS_CDN) + ';',
             'window.EJS_color         = "#0ea5e9";',
             'window.EJS_startOnLoaded = true;',
-            'window.EJS_language      = "pt-BR";',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
             'window.EJS_VirtualGamepad = false;',
-            // MutationObserver: esconde elementos EJS conforme aparecem no DOM
-            '(function(){',
-            '  var sel=".ejs-vgamepad,.ejs-vgamepad-active,.ejs-arrow,.ejs-button";',
-            '  function _h(){',
-            '    document.querySelectorAll(sel).forEach(function(e){',
-            '      if(!e.querySelector("canvas"))e.style.setProperty("display","none","important");',
-            '    });',
-            '    document.querySelectorAll("[class]").forEach(function(e){',
-            '      var c=e.className||"";',
-            '      if(typeof c==="string"&&c.indexOf("ejs-")===0&&!c.match(/canvas/)&&!e.querySelector("canvas"))',
-            '        e.style.setProperty("display","none","important");',
-            '    });',
-            '  }',
-            '  new MutationObserver(_h).observe(document.documentElement,{childList:true,subtree:true});',
-            '})();',
+            // Foca o canvas apos o jogo iniciar (Emscripten precisa de focus no canvas)
+            'window.EJS_onGameStart = function(){',
+            '  var c = document.querySelector("canvas");',
+            '  if(c){c.setAttribute("tabindex","0");c.focus();}',
+            '};',
             '<\/script>',
             '<script src="' + EJS_CDN + 'loader.js"><\/script>',
             '</body></html>',
