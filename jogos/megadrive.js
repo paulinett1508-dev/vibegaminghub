@@ -5,9 +5,9 @@
 // ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
 //
 // Arquitetura: iframe srcdoc fullscreen — EJS gerencia canvas + gamepad.
-// Gamepad EJS posicionado na metade inferior via EJS_VirtualGamepadSettings.
-// Botoes B/A estilizados via MutationObserver (azul/vermelho com glow).
-// Botao Sair no parent overlay (z-index acima do iframe).
+// Gamepad EJS reposicionado para abaixo do canvas via .ejs_virtualGamepad_parent.
+// Botoes B/A estilizados via MutationObserver (classes corretas com underscore).
+// Botao Sair no parent overlay na faixa dos controles (nao sobre o jogo).
 // =====================================================================
 
 (function () {
@@ -27,7 +27,7 @@
         _overlay.id = 'megadrive-overlay';
         Object.assign(_overlay.style, {
             position: 'fixed', inset: '0',
-            background: '#000', zIndex: '9000',
+            background: '#0f172a', zIndex: '9000',
             WebkitTapHighlightColor: 'transparent',
         });
 
@@ -41,7 +41,6 @@
         iframe.setAttribute('allowfullscreen', '');
         iframe.setAttribute('allow', 'autoplay; gamepad *');
 
-        // Apenas botoes validos nesta versao do EJS (zoom e diskDrive sao invalidos)
         var ejsButtons = JSON.stringify({
             playPause: false, restart: false, mute: false, settings: false,
             fullscreen: false, saveState: false, loadState: false,
@@ -54,13 +53,13 @@
 
         // Gamepad Genesis: D-pad + B (pular) + A (spin) + Start
         // input_value: A=0, C=1, Start=3, D-pad=4-7, B=8  (genesis_plus_gx)
-        // top/left: posicao relativa ao container do EJS (tela cheia = 100vh/100vw)
-        // Botoes posicionados abaixo dos 57% para nao sobrepor o jogo
+        // top/left em % sao relativas ao sub-container EJS (~130px) — NAO ao viewport
+        // Portanto usar apenas `location` para posicionamento; CSS reposiciona o container
         var ejsGamepad = JSON.stringify([
-            {type: 'dpad',   top: '62%', left: '3%',  inputValues: [4, 5, 6, 7]},
-            {type: 'button', text: 'B', id: 'b', top: '62%', left: '77%', input_value: 8},
-            {type: 'button', text: 'A', id: 'a', top: '78%', left: '77%', input_value: 0},
-            {type: 'button', text: 'Start', id: 'start', top: '91%', left: '43%', input_value: 3}
+            {type: 'dpad',   location: 'left',   inputValues: [4, 5, 6, 7]},
+            {type: 'button', text: 'B', id: 'b', location: 'right', input_value: 8},
+            {type: 'button', text: 'A', id: 'a', location: 'right', input_value: 0},
+            {type: 'button', text: 'Start', id: 'start', location: 'center', input_value: 3}
         ]);
 
         iframe.srcdoc = [
@@ -68,14 +67,24 @@
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#000;width:100%;height:100vh;overflow:hidden}',
+            'body{background:#0f172a;width:100%;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%}',
-            // Esconde apenas o menu/toolbar do EJS
+            // Esconde toolbar/menu do EJS
             '.ejs_menu_bar,.ejs-menu{display:none!important}',
-            // Constragi o canvas ao topo da tela (deixa espaco para o gamepad)
+            // Canvas: ocupa apenas a parte superior (deixa espaco para o gamepad)
             'canvas{max-height:57vh!important;max-width:100%!important;display:block!important;margin:0 auto!important}',
-            // Estilo base dos botoes de acao EJS (serao refinados via JS)
-            '.ejs-button{',
+
+            // ─── GAMEPAD CONTAINER ───────────────────────────────────────────
+            // Reposiciona o container do gamepad EJS para logo abaixo do canvas
+            // eliminando o gap preto entre jogo e controles
+            '.ejs_virtualGamepad_parent{',
+            '  top:57vh!important;bottom:0!important;height:43vh!important;',
+            '  background:#0f172a!important;',
+            '}',
+
+            // ─── BOTOES DE ACAO ───────────────────────────────────────────────
+            // Classe CORRETA do EJS: ejs_virtualGamepad_button (underscore)
+            '.ejs_virtualGamepad_button{',
             '  border-radius:50%!important;',
             '  width:76px!important;height:76px!important;',
             '  border:2px solid rgba(255,255,255,.22)!important;',
@@ -85,11 +94,12 @@
             '  text-shadow:0 2px 6px rgba(0,0,0,.6)!important;',
             '  display:flex!important;align-items:center!important;justify-content:center!important;',
             '}',
-            // D-pad: estilo das setas
-            '.ejs-arrow .b_up,.ejs-arrow .b_down,.ejs-arrow .b_left,.ejs-arrow .b_right{',
+
+            // ─── D-PAD ────────────────────────────────────────────────────────
+            // Classes corretas: ejs_dpad_bar, ejs_dpad_horizontal, ejs_dpad_vertical
+            '.ejs_dpad_bar{',
             '  background:rgba(60,60,60,.6)!important;',
-            '  border:1.5px solid rgba(255,255,255,.15)!important;',
-            '  border-radius:10px!important;',
+            '  border-radius:8px!important;',
             '}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
@@ -102,28 +112,34 @@
             'window.EJS_startOnLoaded = true;',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
             'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
-            // MutationObserver: aplica cores/estilo nos botoes EJS apos render
+
+            // MutationObserver: aplica cores nos botoes EJS apos render
+            // Seletor correto: .ejs_virtualGamepad_button (underscore)
+            // EJS nao usa data-id — identificar por textContent
             '(function(){',
             '  var _done=new Set();',
             '  function _style(){',
-            '    document.querySelectorAll(".ejs-button").forEach(function(b){',
+            '    document.querySelectorAll(".ejs_virtualGamepad_button").forEach(function(b){',
             '      if(_done.has(b))return;',
             '      _done.add(b);',
-            '      var id=(b.getAttribute("data-id")||b.id||"").toLowerCase();',
             '      var txt=b.textContent.trim().toUpperCase();',
-            '      if(id==="b"||txt==="B"){',
+            '      if(txt==="B"){',
             '        b.style.background="linear-gradient(145deg,#3b82f6,#1d4ed8)";',
             '        b.style.boxShadow="0 0 22px rgba(59,130,246,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
-            '      }else if(id==="a"||txt==="A"){',
+            '      }else if(txt==="A"){',
             '        b.style.background="linear-gradient(145deg,#ef4444,#b91c1c)";',
             '        b.style.boxShadow="0 0 22px rgba(239,68,68,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
-            '      }else if(id==="start"||/start/i.test(txt)){',
+            '      }else if(/start/i.test(txt)){',
             '        b.style.setProperty("border-radius","22px","important");',
             '        b.style.setProperty("width","auto","important");',
             '        b.style.setProperty("padding","11px 22px","important");',
             '        b.style.background="rgba(50,50,50,.8)";',
             '        b.style.letterSpacing="1.5px";',
             '        b.style.fontSize="13px";',
+            '      }else{',
+            // Botoes extras do genesis (C, X, Y, Z) — estilo neutro discreto
+            '        b.style.background="rgba(40,40,40,.7)";',
+            '        b.style.border="1px solid rgba(255,255,255,.12)";',
             '      }',
             '    });',
             '  }',
@@ -141,7 +157,7 @@
 
         _overlay.appendChild(iframe);
 
-        // --- Botao Sair (parent overlay, acima do iframe) ---
+        // --- Botao Sair: na faixa dos controles (abaixo do jogo, nao sobre ele) ---
         var exitBtn = document.createElement('button');
         exitBtn.setAttribute('aria-label', 'Sair do jogo');
         exitBtn.innerHTML =
@@ -149,7 +165,8 @@
             '<span style="pointer-events:none;margin-left:6px;">Sair</span>';
         Object.assign(exitBtn.style, {
             position: 'absolute',
-            top: '12px', left: '12px',
+            top: 'calc(57vh + 10px)', left: '50%',
+            transform: 'translateX(-50%)',
             zIndex: '9200',
             display: 'flex', alignItems: 'center',
             padding: '8px 14px',
@@ -168,7 +185,6 @@
 
         document.body.appendChild(_overlay);
 
-        // ESC: mesmo fluxo do botao sair
         _onKey = function (e) {
             if (e.key === 'Escape' && e.target === document.body) history.back();
         };
