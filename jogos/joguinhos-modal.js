@@ -1005,10 +1005,11 @@
             hubBack.addEventListener('click', irParaSplash);
         }
 
-        // Botao voltar do jogo
+        // Botao voltar do jogo — usa history.back() para manter a pilha de
+        // history em sincronia e passar pelo dialogo "Sair?" do popstate handler
         var jogoVoltar = document.getElementById('jogo-voltar-btn');
         if (jogoVoltar) {
-            jogoVoltar.addEventListener('click', voltarDoJogo);
+            jogoVoltar.addEventListener('click', function () { history.back(); });
         }
 
         // Iniciar animacoes do splash
@@ -1030,8 +1031,13 @@
     }
 
     // Exposicao global (retrocompatibilidade)
+    // fecharJoguinhos usa history.back() em vez de voltarDoJogo() direto.
+    // Motivo: voltarDoJogo() fecha sem dialog e sem popar o estado 'jogo' da
+    // pilha de history, deixando estados fantasmas que confundem o popstate
+    // handler (back fisico dispara "Tchau?" enquanto hub esta visivel, etc).
+    // history.back() → popstate → "Sair?" dialog → voltarDoJogo() + replaceState.
     window.abrirJoguinhos = irParaHub;
-    window.fecharJoguinhos = voltarDoJogo;
+    window.fecharJoguinhos = function () { history.back(); };
 
     // Rodar ao carregar
     if (document.readyState === 'loading') {
