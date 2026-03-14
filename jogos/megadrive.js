@@ -9,8 +9,9 @@
 // Solucao: cada abertura cria um <iframe srcdoc> com escopo JS isolado.
 // Fechar o overlay remove o iframe e destroi o escopo completamente.
 //
-// Botao Sair: centralizado no gap preto entre canvas e gamepad virtual.
-// Chama history.back() → dialogo "Sair?" do hub (popstate em joguinhos-modal.js).
+// Gamepad custom no parent overlay: D-pad + botoes A/B + Start.
+// Injeta KeyboardEvents no contentWindow do iframe (mesmo origin via srcdoc).
+// Teclas: ArrowKeys=D-pad, Z=B(pular), X=A(spin), Enter=Start
 // =====================================================================
 
 (function () {
@@ -22,8 +23,109 @@
     var _overlay = null;
     var _onKey   = null;
 
+    // Injeta evento de teclado no iframe (srcdoc = mesmo origin)
+    function _sendKey(key, code, keyCode, type) {
+        if (!_overlay) return;
+        var iframe = _overlay.querySelector('iframe');
+        if (!iframe || !iframe.contentWindow) return;
+        try {
+            var win = iframe.contentWindow;
+            var opts = { key: key, code: code, keyCode: keyCode, which: keyCode, bubbles: true, cancelable: true };
+            win.dispatchEvent(new win.KeyboardEvent(type, opts));
+            if (win.document) win.document.dispatchEvent(new win.KeyboardEvent(type, opts));
+        } catch (e) {}
+    }
+
+    // Cria botao de acao circular (A, B)
+    function _mkActionBtn(label, gradient, glow, key, code, keyCode) {
+        var el = document.createElement('div');
+        el.setAttribute('aria-label', label);
+        el.textContent = label;
+        Object.assign(el.style, {
+            width: '80px', height: '80px',
+            borderRadius: '50%',
+            background: gradient,
+            boxShadow: '0 0 22px ' + glow + ', inset 0 -3px 6px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '28px', fontWeight: 'bold',
+            fontFamily: '"Russo One", "Inter", sans-serif',
+            color: '#fff',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none', WebkitUserSelect: 'none',
+            transition: 'transform 0.07s, box-shadow 0.07s',
+            textShadow: '0 2px 6px rgba(0,0,0,0.6)',
+            border: '2px solid rgba(255,255,255,0.22)',
+        });
+        var _down = false;
+        function onDown(e) {
+            e.preventDefault();
+            if (_down) return; _down = true;
+            el.style.transform = 'scale(0.87)';
+            el.style.boxShadow = '0 0 8px ' + glow + ', inset 0 -1px 3px rgba(0,0,0,0.35)';
+            _sendKey(key, code, keyCode, 'keydown');
+        }
+        function onUp(e) {
+            e.preventDefault();
+            if (!_down) return; _down = false;
+            el.style.transform = 'scale(1)';
+            el.style.boxShadow = '0 0 22px ' + glow + ', inset 0 -3px 6px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)';
+            _sendKey(key, code, keyCode, 'keyup');
+        }
+        el.addEventListener('touchstart', onDown, { passive: false });
+        el.addEventListener('touchend',   onUp,   { passive: false });
+        el.addEventListener('touchcancel',onUp,   { passive: false });
+        el.addEventListener('mousedown',  onDown);
+        el.addEventListener('mouseup',    onUp);
+        el.addEventListener('mouseleave', function (e) { if (_down) onUp(e); });
+        return el;
+    }
+
+    // Cria botao direcional para o D-pad
+    function _mkDirBtn(label, topPx, leftPx, key, code, keyCode) {
+        var el = document.createElement('div');
+        el.setAttribute('aria-label', label);
+        el.textContent = label;
+        Object.assign(el.style, {
+            position: 'absolute',
+            width: '52px', height: '52px',
+            top: topPx + 'px', left: leftPx + 'px',
+            background: 'rgba(70,70,70,0.55)',
+            border: '1.5px solid rgba(255,255,255,0.15)',
+            borderRadius: '10px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', color: '#ccc',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none', WebkitUserSelect: 'none',
+        });
+        var _down = false;
+        function onDown(e) {
+            e.preventDefault();
+            if (_down) return; _down = true;
+            el.style.background = 'rgba(130,130,130,0.75)';
+            _sendKey(key, code, keyCode, 'keydown');
+        }
+        function onUp(e) {
+            e.preventDefault();
+            if (!_down) return; _down = false;
+            el.style.background = 'rgba(70,70,70,0.55)';
+            _sendKey(key, code, keyCode, 'keyup');
+        }
+        el.addEventListener('touchstart', onDown, { passive: false });
+        el.addEventListener('touchend',   onUp,   { passive: false });
+        el.addEventListener('touchcancel',onUp,   { passive: false });
+        el.addEventListener('mousedown',  onDown);
+        el.addEventListener('mouseup',    onUp);
+        el.addEventListener('mouseleave', function (e) { if (_down) onUp(e); });
+        return el;
+    }
+
     function _criarOverlay(romUrl) {
-        // URL absoluta necessaria pois srcdoc nao herda base do parent
         var absRom = new URL(romUrl, window.location.href).href;
 
         // --- Overlay raiz ---
@@ -35,57 +137,34 @@
             WebkitTapHighlightColor: 'transparent',
         });
 
-        // --- iframe: isola o escopo JS do EmulatorJS ---
-        // Cada abertura = escopo limpo; fechar o overlay destroi tudo.
+        // --- iframe: ocupa os 57vh superiores (area do jogo) ---
         var iframe = document.createElement('iframe');
         Object.assign(iframe.style, {
-            width: '100%', height: '100%',
+            position: 'absolute',
+            top: '0', left: '0', width: '100%', height: '57vh',
             border: 'none', display: 'block',
         });
         iframe.setAttribute('allowfullscreen', '');
-        // Gamepad API requer permissao explicita em iframes
         iframe.setAttribute('allow', 'autoplay; gamepad *');
 
-        // Todos os botoes false: a barra de menu sera ocultada via CSS de qualquer forma.
-        // exitEmulation false evita que EJS adicione seu proprio botao de saida.
         var ejsButtons = JSON.stringify({
-            playPause:      false,
-            restart:        false,
-            mute:           false,
-            settings:       false,
-            fullscreen:     false,
-            saveState:      false,
-            loadState:      false,
-            screenRecord:   false,
-            gamepad:        false,
-            cheat:          false,
-            volume:         false,
-            zoom:           false,
-            diskDrive:      false,
-            netplay:        false,
-            saveSavFiles:   false,
-            loadSavFiles:   false,
-            quickSave:      false,
-            quickLoad:      false,
-            screenshot:     false,
-            cacheManager:   false,
-            exitEmulation:  false,
+            playPause: false, restart: false, mute: false, settings: false,
+            fullscreen: false, saveState: false, loadState: false,
+            screenRecord: false, gamepad: false, cheat: false,
+            volume: false, zoom: false, diskDrive: false, netplay: false,
+            saveSavFiles: false, loadSavFiles: false, quickSave: false,
+            quickLoad: false, screenshot: false, cacheManager: false,
+            exitEmulation: false,
         });
 
         iframe.srcdoc = [
             '<!DOCTYPE html><html><head><meta charset="utf-8">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#000;width:100vw;height:100vh;overflow:hidden}',
+            'body{background:#000;width:100%;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%}',
-            // Esconde toda a barra de menu do EJS
             '.ejs_menu_bar,.ejs_menu,.ejs_toolbar{display:none!important}',
-            // Força o container EJS a ocupar toda a altura disponivel
-            '.ejs_container{width:100%!important;height:100vh!important;display:flex!important;flex-direction:column!important}',
-            // Area do jogo ocupa espaco restante, canvas alinhado ao topo
-            '.ejs_game_player_wrapper,.ejs_game_player{flex:1!important;display:flex!important;align-items:flex-start!important;justify-content:center!important}',
-            // Canvas nao ultrapassa a largura da tela
-            '.ejs_canvas{max-width:100%!important;max-height:55vh!important}',
+            '.ejs_virtualGamepad{display:none!important}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
@@ -97,15 +176,7 @@
             'window.EJS_startOnLoaded = true;',
             'window.EJS_language      = "pt-BR";',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
-            // Gamepad Genesis completo: D-pad + A + B + C + Start
-            // input_value: A=0, C=1, Select=2, Start=3, D-pad=4-7, B=8
-            'window.EJS_VirtualGamepadSettings = [',
-            '  {type:"dpad",location:"left",inputValues:[4,5,6,7]},',
-            '  {type:"button",text:"B",id:"b",location:"right",bold:true,input_value:8},',
-            '  {type:"button",text:"C",id:"c",location:"right",bold:true,input_value:1},',
-            '  {type:"button",text:"A",id:"a",location:"right",bold:true,input_value:0},',
-            '  {type:"button",text:"Start",id:"start",location:"center",bold:true,input_value:3}',
-            '];',
+            'window.EJS_VirtualGamepad = false;',
             '<\/script>',
             '<script src="' + EJS_CDN + 'loader.js"><\/script>',
             '</body></html>',
@@ -113,50 +184,148 @@
 
         _overlay.appendChild(iframe);
 
-        // --- Botao Sair ---
-        // Posicionado no gap preto (logo abaixo do canvas do jogo, centralizado).
-        // Mega Drive 320:224 → altura do canvas = 100vw * 224/320 = 70vw.
-        // Botao fica a top: calc(70vw + 20px), fora da area do gamepad virtual.
-        // history.back() → popstate → dialogo "Sair?" do hub.
+        // --- Botao Sair (topo-esquerdo, sobre o jogo) ---
         var exitBtn = document.createElement('button');
         exitBtn.setAttribute('aria-label', 'Sair do jogo');
         exitBtn.innerHTML =
             '<span class="material-icons" style="font-size:20px;pointer-events:none;">arrow_back</span>' +
             '<span style="pointer-events:none;margin-left:6px;">Sair</span>';
         Object.assign(exitBtn.style, {
-            position:    'absolute',
-            top:         '12px',
-            left:        '12px',
-            transform:   'none',
-            zIndex:      '9200',
-            display:     'flex',
-            alignItems:  'center',
-            padding:     '8px 14px',
-            background:  'rgba(15,23,42,0.80)',
-            border:      '1px solid rgba(255,255,255,0.35)',
-            color:       '#fff',
-            borderRadius:'24px',
-            cursor:      'pointer',
+            position: 'absolute',
+            top: '12px', left: '12px',
+            zIndex: '9200',
+            display: 'flex', alignItems: 'center',
+            padding: '8px 14px',
+            background: 'rgba(15,23,42,0.80)',
+            border: '1px solid rgba(255,255,255,0.35)',
+            color: '#fff', borderRadius: '24px',
+            cursor: 'pointer',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
-            minWidth:    '64px',
-            minHeight:   '40px',
-            fontSize:    '0.8rem',
-            fontFamily:  'Inter,sans-serif',
-            whiteSpace:  'nowrap',
+            minWidth: '64px', minHeight: '40px',
+            fontSize: '0.8rem', fontFamily: 'Inter,sans-serif',
+            whiteSpace: 'nowrap',
         });
-        exitBtn.addEventListener('click', function () {
-            history.back(); // dispara popstate → dialogo "Sair?" do hub
-        });
+        exitBtn.addEventListener('click', function () { history.back(); });
         _overlay.appendChild(exitBtn);
 
+        // --- Gamepad custom (area inferior 43vh) ---
+        var gpArea = document.createElement('div');
+        Object.assign(gpArea.style, {
+            position: 'absolute',
+            top: '57vh', left: '0', right: '0', bottom: '0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px 16px',
+            userSelect: 'none', WebkitUserSelect: 'none',
+        });
+
+        // --- D-pad (esquerdo) ---
+        // Container 156x156: botoes 52x52 posicionados em cruz
+        // Centro em (52, 52) de cada direcao
+        var dpad = document.createElement('div');
+        Object.assign(dpad.style, {
+            position: 'relative',
+            width: '156px', height: '156px',
+            flexShrink: '0',
+        });
+        // Fundo da cruz
+        var dpadBg = document.createElement('div');
+        Object.assign(dpadBg.style, {
+            position: 'absolute', inset: '0',
+            background: 'rgba(30,30,30,0.55)',
+            borderRadius: '12px',
+            clipPath: 'polygon(33% 0%,67% 0%,67% 33%,100% 33%,100% 67%,67% 67%,67% 100%,33% 100%,33% 67%,0% 67%,0% 33%,33% 33%)',
+        });
+        dpad.appendChild(dpadBg);
+        [
+            { label: '▲', t: 0,   l: 52, key: 'ArrowUp',    code: 'ArrowUp',    kc: 38 },
+            { label: '▼', t: 104, l: 52, key: 'ArrowDown',  code: 'ArrowDown',  kc: 40 },
+            { label: '◀', t: 52,  l: 0,  key: 'ArrowLeft',  code: 'ArrowLeft',  kc: 37 },
+            { label: '▶', t: 52,  l: 104,key: 'ArrowRight', code: 'ArrowRight', kc: 39 },
+        ].forEach(function (d) {
+            dpad.appendChild(_mkDirBtn(d.label, d.t, d.l, d.key, d.code, d.kc));
+        });
+        gpArea.appendChild(dpad);
+
+        // --- Botao Start (centro) ---
+        var startBtn = document.createElement('div');
+        startBtn.textContent = 'START';
+        Object.assign(startBtn.style, {
+            alignSelf: 'flex-end',
+            marginBottom: '20px',
+            padding: '11px 22px',
+            background: 'rgba(50,50,50,0.75)',
+            border: '1.5px solid rgba(255,255,255,0.22)',
+            borderRadius: '22px',
+            color: '#bbb',
+            fontSize: '13px',
+            fontFamily: '"Russo One", sans-serif',
+            letterSpacing: '1.5px',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none',
+            transition: 'background 0.07s',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+        });
+        var _stDown = false;
+        startBtn.addEventListener('touchstart', function (e) {
+            e.preventDefault();
+            if (_stDown) return; _stDown = true;
+            startBtn.style.background = 'rgba(110,110,110,0.9)';
+            _sendKey('Enter', 'Enter', 13, 'keydown');
+        }, { passive: false });
+        function _stUp(e) {
+            e.preventDefault();
+            if (!_stDown) return; _stDown = false;
+            startBtn.style.background = 'rgba(50,50,50,0.75)';
+            _sendKey('Enter', 'Enter', 13, 'keyup');
+        }
+        startBtn.addEventListener('touchend',   _stUp, { passive: false });
+        startBtn.addEventListener('touchcancel',_stUp, { passive: false });
+        startBtn.addEventListener('mousedown', function () {
+            startBtn.style.background = 'rgba(110,110,110,0.9)';
+            _sendKey('Enter', 'Enter', 13, 'keydown');
+        });
+        startBtn.addEventListener('mouseup', function () {
+            startBtn.style.background = 'rgba(50,50,50,0.75)';
+            _sendKey('Enter', 'Enter', 13, 'keyup');
+        });
+        gpArea.appendChild(startBtn);
+
+        // --- Botoes de acao A e B (direita) ---
+        // Genesis: B = pular (Z key = RetroArch btn 0), A = spin/secundario (X key = RetroArch btn 8)
+        var actions = document.createElement('div');
+        Object.assign(actions.style, {
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: '14px',
+            flexShrink: '0',
+        });
+        // B — azul, principal (pular no Sonic)
+        actions.appendChild(_mkActionBtn(
+            'B',
+            'linear-gradient(145deg, #3b82f6, #1d4ed8)',
+            'rgba(59,130,246,0.65)',
+            'z', 'KeyZ', 90
+        ));
+        // A — vermelho, secundario (spin dash)
+        actions.appendChild(_mkActionBtn(
+            'A',
+            'linear-gradient(145deg, #ef4444, #b91c1c)',
+            'rgba(239,68,68,0.65)',
+            'x', 'KeyX', 88
+        ));
+        gpArea.appendChild(actions);
+
+        _overlay.appendChild(gpArea);
         document.body.appendChild(_overlay);
 
         // ESC: mesmo fluxo do botao sair
         _onKey = function (e) {
-            if (e.key === 'Escape' && e.target === document.body) {
-                history.back();
-            }
+            if (e.key === 'Escape' && e.target === document.body) history.back();
         };
         document.addEventListener('keydown', _onKey);
     }
@@ -170,7 +339,6 @@
         fechar: function () {
             if (_onKey)   { document.removeEventListener('keydown', _onKey); _onKey = null; }
             if (_overlay) { _overlay.remove(); _overlay = null; }
-            // iframe removido com o overlay — escopo JS do EJS destruido automaticamente
         },
     };
 
