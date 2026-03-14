@@ -95,6 +95,15 @@
             'window.EJS_startOnLoaded = true;',
             'window.EJS_language      = "pt-BR";',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
+            // Gamepad Genesis completo: D-pad + A + B + C + Start
+            // input_value: A=0, C=1, Select=2, Start=3, D-pad=4-7, B=8
+            'window.EJS_VirtualGamepadSettings = [',
+            '  {type:"dpad",location:"left",inputValues:[4,5,6,7]},',
+            '  {type:"button",text:"B",id:"b",location:"right",bold:true,input_value:8},',
+            '  {type:"button",text:"C",id:"c",location:"right",bold:true,input_value:1},',
+            '  {type:"button",text:"A",id:"a",location:"right",bold:true,input_value:0},',
+            '  {type:"button",text:"Start",id:"start",location:"center",bold:true,input_value:3}',
+            '];',
             '<\/script>',
             '<script src="' + EJS_CDN + 'loader.js"><\/script>',
             '</body></html>',
