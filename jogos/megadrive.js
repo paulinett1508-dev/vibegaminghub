@@ -2,14 +2,14 @@
 // megadrive.js — Emulador Mega Drive via EmulatorJS (CDN)
 // =====================================================================
 // Usa genesis_plus_gx (RetroArch/WASM) carregado dinamicamente.
-// ROMs ficam em /roms/megadrive/  (ex: sonic.md, sonic2.md)
+// ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
 // Limpeza total de window.EJS_* ao fechar — nunca dois emuladores abertos.
 // =====================================================================
 
 (function () {
     'use strict';
 
-    var ROM_DEFAULT = 'roms/megadrive/sonic.md';
+    var ROM_DEFAULT = 'roms/megadrive/Sonic The Hedgehog 2 (World) (Rev A).md';
     var EJS_CDN     = 'https://cdn.emulatorjs.org/stable/data/';
 
     var _overlay  = null;
