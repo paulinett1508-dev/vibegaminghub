@@ -19,16 +19,28 @@
     var _ac       = null; // AbortController para cleanup de listeners
 
     // ── Relay de teclado ──────────────────────────────────────────────
+    var _CODE = {z:'KeyZ',x:'KeyX',Enter:'Enter',ArrowUp:'ArrowUp',ArrowDown:'ArrowDown',ArrowLeft:'ArrowLeft',ArrowRight:'ArrowRight'};
+    var _KC   = {z:90,x:88,Enter:13,ArrowUp:38,ArrowDown:40,ArrowLeft:37,ArrowRight:39};
+
     function _press(key) {
-        if (!_iframe || !_iframe.contentWindow) return function(){};
-        var kd = new KeyboardEvent('keydown', {key:key, bubbles:true, cancelable:true});
-        _iframe.contentWindow.dispatchEvent(kd);
-        return function() {
-            if (!_iframe || !_iframe.contentWindow) return;
-            _iframe.contentWindow.dispatchEvent(
-                new KeyboardEvent('keyup', {key:key, bubbles:true, cancelable:true})
-            );
-        };
+        if (!_iframe) return function(){};
+        var win = _iframe.contentWindow;
+        var doc = _iframe.contentDocument;
+        if (!win) return function(){};
+
+        function _fire(type) {
+            var opts = {key:key, code:_CODE[key]||key, keyCode:_KC[key]||0, which:_KC[key]||0, bubbles:true, cancelable:true};
+            // Despacha para window, document e canvas para cobrir todos os listeners do EJS
+            win.dispatchEvent(new KeyboardEvent(type, opts));
+            if (doc) {
+                doc.dispatchEvent(new KeyboardEvent(type, opts));
+                var cv = doc.querySelector('canvas');
+                if (cv) cv.dispatchEvent(new KeyboardEvent(type, opts));
+            }
+        }
+
+        _fire('keydown');
+        return function() { _fire('keyup'); };
     }
 
     function _addBtn(el, key, signal) {
@@ -82,17 +94,14 @@
         var screenSection = document.createElement('div');
         Object.assign(screenSection.style, {
             width: '100%', flexShrink: '0',
-            paddingTop: '10px',
         });
 
-        // Moldura plástica da tela
+        // Moldura plástica da tela — edge-to-edge para máxima área de jogo
         var bezel = document.createElement('div');
         Object.assign(bezel.style, {
             background: '#1a1a1a',
-            borderRadius: '8px 8px 6px 6px',
-            padding: '8px 8px 6px',
-            margin: '0 12px',
-            boxShadow: 'inset 0 3px 12px rgba(0,0,0,0.9), 0 4px 12px rgba(0,0,0,0.4)',
+            padding: '5px 5px 4px',
+            boxShadow: 'inset 0 3px 12px rgba(0,0,0,0.9)',
         });
 
         // Inner screen (verde escuro como LCD Game Boy desligado)
@@ -121,10 +130,8 @@
         var logoBar = document.createElement('div');
         Object.assign(logoBar.style, {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            margin: '0 12px',
-            padding: '5px 8px 4px',
+            padding: '4px 10px 5px',
             background: '#1a1a1a',
-            borderRadius: '0 0 8px 8px',
         });
 
         var logo = document.createElement('span');
