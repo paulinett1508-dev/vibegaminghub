@@ -1,0 +1,8 @@
+# ROMs de Mega Drive (propriedade SEGA, nao versionar)
+*.md
+*.bin
+*.gen
+*.smd
+
+# Manter estrutura de pastas
+!.gitkeep

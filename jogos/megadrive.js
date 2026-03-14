@@ -2,7 +2,7 @@
 // megadrive.js — Emulador Mega Drive via EmulatorJS (CDN)
 // =====================================================================
 // Usa genesis_plus_gx (RetroArch/WASM) carregado dinamicamente.
-// ROMs ficam em /roms/megadrive/  (ex: sonic.md, sonic2.md)
+// ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
 // Limpeza total de window.EJS_* ao fechar — nunca dois emuladores abertos.
 // Layout: header com botao voltar + game div em aspect-ratio correto (320:224)
 // =====================================================================
@@ -10,7 +10,7 @@
 (function () {
     'use strict';
 
-    var ROM_DEFAULT  = 'roms/megadrive/sonic.md';
+    var ROM_DEFAULT  = 'roms/megadrive/Sonic The Hedgehog 2 (World) (Rev A).md';
     var EJS_CDN      = 'https://cdn.emulatorjs.org/stable/data/';
     var MD_W         = 320;  // resolucao nativa Mega Drive
     var MD_H         = 224;
@@ -127,6 +127,13 @@
         window.EJS_startOnLoaded = true;
         window.EJS_language      = 'pt-BR';
 
+        // Gamepad virtual para touch (modo vertical)
+        window.EJS_VirtualGamepadSettings = {
+            leftHanded:     false,
+            buttonSize:     1.0,
+            buttonOpacity:  0.85,
+        };
+
         // Botoes da toolbar: esconder tudo que nao faz sentido para criancas
         window.EJS_Buttons = {
             playPause:    false,
@@ -143,6 +150,12 @@
             zoom:         false,
             diskDrive:    false,
             netplay:      false,
+            saveSavFiles: false,
+            loadSavFiles: false,
+            quickSave:    false,
+            quickLoad:    false,
+            screenshot:   false,
+            cacheManager: false,
         };
 
         // Carregar loader dinamicamente
