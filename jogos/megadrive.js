@@ -74,8 +74,34 @@
         window.EJS_color         = '#1d4ed8';
         window.EJS_startOnLoaded = true;
         window.EJS_language      = 'pt-BR';
+
+        // Gamepad virtual para touch (modo vertical)
+        window.EJS_VirtualGamepadSettings = {
+            // Layout para Mega Drive 6-button
+            leftHanded: false,
+            buttonSize: 1.0,
+            buttonOpacity: 0.85,
+        };
+
+        // Botoes do menu EmulatorJS
         window.EJS_Buttons = {
-            playPause: false,  // criancas nao precisam de pause manual
+            playPause: true,
+            restart: false,
+            mute: true,
+            settings: false,
+            fullscreen: true,
+            saveState: false,
+            loadState: false,
+            screenRecord: false,
+            gamepad: false,
+            cheat: false,
+            volume: false,
+            saveSavFiles: false,
+            loadSavFiles: false,
+            quickSave: false,
+            quickLoad: false,
+            screenshot: false,
+            cacheManager: false,
         };
 
         // Carregar loader dinamicamente

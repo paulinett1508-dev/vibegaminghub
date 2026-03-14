@@ -237,6 +237,7 @@
         var container = document.getElementById('jogo-container');
         if (container) container.innerHTML = '';
         mostrarTela('tela-hub');
+        _telaAtual = 'hub';
     }
 
     // ---- Montar grid do hub ----
