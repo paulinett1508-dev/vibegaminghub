@@ -4,14 +4,10 @@
 // Usa genesis_plus_gx (RetroArch/WASM) carregado dinamicamente.
 // ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
 //
-// EmulatorJS usa `const` no escopo do script — carregar o mesmo script duas
-// vezes na mesma pagina causa SyntaxError ("already declared").
-// Solucao: cada abertura cria um <iframe srcdoc> com escopo JS isolado.
-// Fechar o overlay remove o iframe e destroi o escopo completamente.
-//
-// Gamepad custom no parent overlay: D-pad + botoes A/B + Start.
-// Injeta KeyboardEvents no contentWindow do iframe (mesmo origin via srcdoc).
-// Teclas: ArrowKeys=D-pad, Z=B(pular), X=A(spin), Enter=Start
+// Arquitetura: iframe srcdoc fullscreen — EJS gerencia canvas + gamepad.
+// Gamepad EJS posicionado na metade inferior via EJS_VirtualGamepadSettings.
+// Botoes B/A estilizados via MutationObserver (azul/vermelho com glow).
+// Botao Sair no parent overlay (z-index acima do iframe).
 // =====================================================================
 
 (function () {
@@ -22,115 +18,6 @@
 
     var _overlay = null;
     var _onKey   = null;
-
-    // Injeta evento de teclado no iframe (srcdoc = mesmo origin)
-    // Emscripten registra listeners no canvas E no window — disparamos nos dois
-    function _sendKey(key, code, keyCode, type) {
-        if (!_overlay) return;
-        var iframe = _overlay.querySelector('iframe');
-        if (!iframe || !iframe.contentWindow) return;
-        try {
-            var win = iframe.contentWindow;
-            var doc = win.document;
-            var opts = { key: key, code: code, keyCode: keyCode, which: keyCode, bubbles: true, cancelable: true };
-            var kev = new win.KeyboardEvent(type, opts);
-            // 1. Canvas (onde Emscripten registra os handlers de input)
-            var canvas = doc.querySelector('canvas');
-            if (canvas) canvas.dispatchEvent(kev);
-            // 2. Document e window (fallback)
-            doc.dispatchEvent(new win.KeyboardEvent(type, opts));
-            win.dispatchEvent(new win.KeyboardEvent(type, opts));
-        } catch (e) {}
-    }
-
-    // Cria botao de acao circular (A, B)
-    function _mkActionBtn(label, gradient, glow, key, code, keyCode) {
-        var el = document.createElement('div');
-        el.setAttribute('aria-label', label);
-        el.textContent = label;
-        Object.assign(el.style, {
-            width: '80px', height: '80px',
-            borderRadius: '50%',
-            background: gradient,
-            boxShadow: '0 0 22px ' + glow + ', inset 0 -3px 6px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '28px', fontWeight: 'bold',
-            fontFamily: '"Russo One", "Inter", sans-serif',
-            color: '#fff',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent',
-            userSelect: 'none', WebkitUserSelect: 'none',
-            transition: 'transform 0.07s, box-shadow 0.07s',
-            textShadow: '0 2px 6px rgba(0,0,0,0.6)',
-            border: '2px solid rgba(255,255,255,0.22)',
-        });
-        var _down = false;
-        function onDown(e) {
-            e.preventDefault();
-            if (_down) return; _down = true;
-            el.style.transform = 'scale(0.87)';
-            el.style.boxShadow = '0 0 8px ' + glow + ', inset 0 -1px 3px rgba(0,0,0,0.35)';
-            _sendKey(key, code, keyCode, 'keydown');
-        }
-        function onUp(e) {
-            e.preventDefault();
-            if (!_down) return; _down = false;
-            el.style.transform = 'scale(1)';
-            el.style.boxShadow = '0 0 22px ' + glow + ', inset 0 -3px 6px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.6)';
-            _sendKey(key, code, keyCode, 'keyup');
-        }
-        el.addEventListener('touchstart', onDown, { passive: false });
-        el.addEventListener('touchend',   onUp,   { passive: false });
-        el.addEventListener('touchcancel',onUp,   { passive: false });
-        el.addEventListener('mousedown',  onDown);
-        el.addEventListener('mouseup',    onUp);
-        el.addEventListener('mouseleave', function (e) { if (_down) onUp(e); });
-        return el;
-    }
-
-    // Cria botao direcional para o D-pad
-    function _mkDirBtn(label, topPx, leftPx, key, code, keyCode) {
-        var el = document.createElement('div');
-        el.setAttribute('aria-label', label);
-        el.textContent = label;
-        Object.assign(el.style, {
-            position: 'absolute',
-            width: '52px', height: '52px',
-            top: topPx + 'px', left: leftPx + 'px',
-            background: 'rgba(70,70,70,0.55)',
-            border: '1.5px solid rgba(255,255,255,0.15)',
-            borderRadius: '10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '20px', color: '#ccc',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent',
-            userSelect: 'none', WebkitUserSelect: 'none',
-        });
-        var _down = false;
-        function onDown(e) {
-            e.preventDefault();
-            if (_down) return; _down = true;
-            el.style.background = 'rgba(130,130,130,0.75)';
-            _sendKey(key, code, keyCode, 'keydown');
-        }
-        function onUp(e) {
-            e.preventDefault();
-            if (!_down) return; _down = false;
-            el.style.background = 'rgba(70,70,70,0.55)';
-            _sendKey(key, code, keyCode, 'keyup');
-        }
-        el.addEventListener('touchstart', onDown, { passive: false });
-        el.addEventListener('touchend',   onUp,   { passive: false });
-        el.addEventListener('touchcancel',onUp,   { passive: false });
-        el.addEventListener('mousedown',  onDown);
-        el.addEventListener('mouseup',    onUp);
-        el.addEventListener('mouseleave', function (e) { if (_down) onUp(e); });
-        return el;
-    }
 
     function _criarOverlay(romUrl) {
         var absRom = new URL(romUrl, window.location.href).href;
@@ -144,17 +31,17 @@
             WebkitTapHighlightColor: 'transparent',
         });
 
-        // --- iframe: ocupa os 57vh superiores (area do jogo) ---
+        // --- iframe: tela cheia — EJS controla canvas e gamepad ---
         var iframe = document.createElement('iframe');
         Object.assign(iframe.style, {
-            position: 'absolute',
-            top: '0', left: '0', width: '100%', height: '57vh',
-            border: 'none', display: 'block',
+            position: 'absolute', inset: '0',
+            width: '100%', height: '100%',
+            border: 'none',
         });
         iframe.setAttribute('allowfullscreen', '');
         iframe.setAttribute('allow', 'autoplay; gamepad *');
 
-        // zoom e diskDrive nao sao botoes validos nesta versao do EJS
+        // Apenas botoes validos nesta versao do EJS (zoom e diskDrive sao invalidos)
         var ejsButtons = JSON.stringify({
             playPause: false, restart: false, mute: false, settings: false,
             fullscreen: false, saveState: false, loadState: false,
@@ -165,19 +52,45 @@
             exitEmulation: false,
         });
 
+        // Gamepad Genesis: D-pad + B (pular) + A (spin) + Start
+        // input_value: A=0, C=1, Start=3, D-pad=4-7, B=8  (genesis_plus_gx)
+        // top/left: posicao relativa ao container do EJS (tela cheia = 100vh/100vw)
+        // Botoes posicionados abaixo dos 57% para nao sobrepor o jogo
+        var ejsGamepad = JSON.stringify([
+            {type: 'dpad',   top: '62%', left: '3%',  inputValues: [4, 5, 6, 7]},
+            {type: 'button', text: 'B', id: 'b', top: '62%', left: '77%', input_value: 8},
+            {type: 'button', text: 'A', id: 'a', top: '78%', left: '77%', input_value: 0},
+            {type: 'button', text: 'Start', id: 'start', top: '91%', left: '43%', input_value: 3}
+        ]);
+
         iframe.srcdoc = [
             '<!DOCTYPE html><html><head><meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#000;width:100%;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%}',
-            // Esconde APENAS o gamepad/UI overlay do EJS — NAO o container do jogo
-            '.ejs-vgamepad{display:none!important}',
-            '.ejs-vgamepad-active{display:none!important}',
-            '.ejs-arrow{display:none!important}',
-            '.ejs-button{display:none!important}',
-            '.ejs_virtualGamepad{display:none!important}',
-            '.ejs_menu_bar{display:none!important}',
+            // Esconde apenas o menu/toolbar do EJS
+            '.ejs_menu_bar,.ejs-menu{display:none!important}',
+            // Constragi o canvas ao topo da tela (deixa espaco para o gamepad)
+            'canvas{max-height:57vh!important;max-width:100%!important;display:block!important;margin:0 auto!important}',
+            // Estilo base dos botoes de acao EJS (serao refinados via JS)
+            '.ejs-button{',
+            '  border-radius:50%!important;',
+            '  width:76px!important;height:76px!important;',
+            '  border:2px solid rgba(255,255,255,.22)!important;',
+            '  color:#fff!important;',
+            '  font-size:26px!important;font-weight:bold!important;',
+            '  font-family:"Russo One",sans-serif!important;',
+            '  text-shadow:0 2px 6px rgba(0,0,0,.6)!important;',
+            '  display:flex!important;align-items:center!important;justify-content:center!important;',
+            '}',
+            // D-pad: estilo das setas
+            '.ejs-arrow .b_up,.ejs-arrow .b_down,.ejs-arrow .b_left,.ejs-arrow .b_right{',
+            '  background:rgba(60,60,60,.6)!important;',
+            '  border:1.5px solid rgba(255,255,255,.15)!important;',
+            '  border-radius:10px!important;',
+            '}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
@@ -188,10 +101,37 @@
             'window.EJS_color         = "#0ea5e9";',
             'window.EJS_startOnLoaded = true;',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
-            'window.EJS_VirtualGamepad = false;',
-            // Foca o canvas apos o jogo iniciar (Emscripten precisa de focus no canvas)
-            'window.EJS_onGameStart = function(){',
-            '  var c = document.querySelector("canvas");',
+            'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
+            // MutationObserver: aplica cores/estilo nos botoes EJS apos render
+            '(function(){',
+            '  var _done=new Set();',
+            '  function _style(){',
+            '    document.querySelectorAll(".ejs-button").forEach(function(b){',
+            '      if(_done.has(b))return;',
+            '      _done.add(b);',
+            '      var id=(b.getAttribute("data-id")||b.id||"").toLowerCase();',
+            '      var txt=b.textContent.trim().toUpperCase();',
+            '      if(id==="b"||txt==="B"){',
+            '        b.style.background="linear-gradient(145deg,#3b82f6,#1d4ed8)";',
+            '        b.style.boxShadow="0 0 22px rgba(59,130,246,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
+            '      }else if(id==="a"||txt==="A"){',
+            '        b.style.background="linear-gradient(145deg,#ef4444,#b91c1c)";',
+            '        b.style.boxShadow="0 0 22px rgba(239,68,68,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
+            '      }else if(id==="start"||/start/i.test(txt)){',
+            '        b.style.setProperty("border-radius","22px","important");',
+            '        b.style.setProperty("width","auto","important");',
+            '        b.style.setProperty("padding","11px 22px","important");',
+            '        b.style.background="rgba(50,50,50,.8)";',
+            '        b.style.letterSpacing="1.5px";',
+            '        b.style.fontSize="13px";',
+            '      }',
+            '    });',
+            '  }',
+            '  new MutationObserver(_style).observe(document.documentElement,{childList:true,subtree:true});',
+            '})();',
+            // Foca canvas ao iniciar (Emscripten precisa de focus)
+            'window.EJS_onGameStart=function(){',
+            '  var c=document.querySelector("canvas");',
             '  if(c){c.setAttribute("tabindex","0");c.focus();}',
             '};',
             '<\/script>',
@@ -201,7 +141,7 @@
 
         _overlay.appendChild(iframe);
 
-        // --- Botao Sair (topo-esquerdo, sobre o jogo) ---
+        // --- Botao Sair (parent overlay, acima do iframe) ---
         var exitBtn = document.createElement('button');
         exitBtn.setAttribute('aria-label', 'Sair do jogo');
         exitBtn.innerHTML =
@@ -226,118 +166,6 @@
         exitBtn.addEventListener('click', function () { history.back(); });
         _overlay.appendChild(exitBtn);
 
-        // --- Gamepad custom (area inferior 43vh) ---
-        var gpArea = document.createElement('div');
-        Object.assign(gpArea.style, {
-            position: 'absolute',
-            top: '57vh', left: '0', right: '0', bottom: '0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px 16px',
-            userSelect: 'none', WebkitUserSelect: 'none',
-        });
-
-        // --- D-pad (esquerdo) ---
-        // Container 156x156: botoes 52x52 posicionados em cruz
-        // Centro em (52, 52) de cada direcao
-        var dpad = document.createElement('div');
-        Object.assign(dpad.style, {
-            position: 'relative',
-            width: '156px', height: '156px',
-            flexShrink: '0',
-        });
-        // Fundo da cruz
-        var dpadBg = document.createElement('div');
-        Object.assign(dpadBg.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(30,30,30,0.55)',
-            borderRadius: '12px',
-            clipPath: 'polygon(33% 0%,67% 0%,67% 33%,100% 33%,100% 67%,67% 67%,67% 100%,33% 100%,33% 67%,0% 67%,0% 33%,33% 33%)',
-        });
-        dpad.appendChild(dpadBg);
-        [
-            { label: '▲', t: 0,   l: 52, key: 'ArrowUp',    code: 'ArrowUp',    kc: 38 },
-            { label: '▼', t: 104, l: 52, key: 'ArrowDown',  code: 'ArrowDown',  kc: 40 },
-            { label: '◀', t: 52,  l: 0,  key: 'ArrowLeft',  code: 'ArrowLeft',  kc: 37 },
-            { label: '▶', t: 52,  l: 104,key: 'ArrowRight', code: 'ArrowRight', kc: 39 },
-        ].forEach(function (d) {
-            dpad.appendChild(_mkDirBtn(d.label, d.t, d.l, d.key, d.code, d.kc));
-        });
-        gpArea.appendChild(dpad);
-
-        // --- Botao Start (centro) ---
-        var startBtn = document.createElement('div');
-        startBtn.textContent = 'START';
-        Object.assign(startBtn.style, {
-            alignSelf: 'flex-end',
-            marginBottom: '20px',
-            padding: '11px 22px',
-            background: 'rgba(50,50,50,0.75)',
-            border: '1.5px solid rgba(255,255,255,0.22)',
-            borderRadius: '22px',
-            color: '#bbb',
-            fontSize: '13px',
-            fontFamily: '"Russo One", sans-serif',
-            letterSpacing: '1.5px',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent',
-            userSelect: 'none',
-            transition: 'background 0.07s',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-        });
-        var _stDown = false;
-        startBtn.addEventListener('touchstart', function (e) {
-            e.preventDefault();
-            if (_stDown) return; _stDown = true;
-            startBtn.style.background = 'rgba(110,110,110,0.9)';
-            _sendKey('Enter', 'Enter', 13, 'keydown');
-        }, { passive: false });
-        function _stUp(e) {
-            e.preventDefault();
-            if (!_stDown) return; _stDown = false;
-            startBtn.style.background = 'rgba(50,50,50,0.75)';
-            _sendKey('Enter', 'Enter', 13, 'keyup');
-        }
-        startBtn.addEventListener('touchend',   _stUp, { passive: false });
-        startBtn.addEventListener('touchcancel',_stUp, { passive: false });
-        startBtn.addEventListener('mousedown', function () {
-            startBtn.style.background = 'rgba(110,110,110,0.9)';
-            _sendKey('Enter', 'Enter', 13, 'keydown');
-        });
-        startBtn.addEventListener('mouseup', function () {
-            startBtn.style.background = 'rgba(50,50,50,0.75)';
-            _sendKey('Enter', 'Enter', 13, 'keyup');
-        });
-        gpArea.appendChild(startBtn);
-
-        // --- Botoes de acao A e B (direita) ---
-        // Genesis: B = pular (Z key = RetroArch btn 0), A = spin/secundario (X key = RetroArch btn 8)
-        var actions = document.createElement('div');
-        Object.assign(actions.style, {
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: '14px',
-            flexShrink: '0',
-        });
-        // B — azul, principal (pular no Sonic)
-        actions.appendChild(_mkActionBtn(
-            'B',
-            'linear-gradient(145deg, #3b82f6, #1d4ed8)',
-            'rgba(59,130,246,0.65)',
-            'z', 'KeyZ', 90
-        ));
-        // A — vermelho, secundario (spin dash)
-        actions.appendChild(_mkActionBtn(
-            'A',
-            'linear-gradient(145deg, #ef4444, #b91c1c)',
-            'rgba(239,68,68,0.65)',
-            'x', 'KeyX', 88
-        ));
-        gpArea.appendChild(actions);
-
-        _overlay.appendChild(gpArea);
         document.body.appendChild(_overlay);
 
         // ESC: mesmo fluxo do botao sair
