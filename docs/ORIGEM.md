@@ -42,6 +42,42 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 | `routes/cartola-pro-routes.js` | — | Endpoint `GET /api/cartola-pro/verificar-premium` |
 | `utils/premium-participante.js` | — | Funcao `verificarParticipantePremium()` |
 
+### Jogo Reptil
+
+- **Arquivo:** `jogos/reptil.js`
+- **Origem:** Codigo original, inspirado em [Reptile Interactive Cursor](https://github.com/Lokesh-reddy18/Reptile-Cursor) (MIT License)
+- **Descricao:** Lagarto procedural com Inverse Kinematics esqueletica. Nenhum codigo foi copiado diretamente — a arquitetura (Segment → LimbSystem → LegSystem → Creature) foi reimplementada do zero com base no conceito.
+
+### Jogo Pac-Man
+
+- **Arquivo:** `jogos/pacman.js`
+- **Origem:** Codigo original, sem dependencia externa
+- **Descricao:** Reimplementacao simplificada do Pac-Man classico para criancas. Mapa, IA dos fantasmas e mecanicas sao implementacoes proprias.
+
+### Jogo Tamandua Runner
+
+- **Arquivo:** `jogos/tamandua.js`
+- **Origem:** Codigo original; reutiliza a arquitetura IK de `reptil.js` (mesma codebase)
+- **Descricao:** Runner automatico com tamandua procedural. A estrutura Segment/LimbSystem/LegSystem foi portada de reptil.js para este jogo.
+
+### Sonic Runner (Canvas custom)
+
+- **Arquivo:** `jogos/sonic.js`
+- **Origem:** Codigo original, sem dependencia externa
+- **Descricao:** Runner 2D custom com fisica inspirada no Retro Engine do Sonic 1-3. Sprites usam GIFs externos (ver assets abaixo). Nao e um emulador — e um jogo canvas escrito do zero.
+- **Assets:** GIFs do Sonic (`run.gif`, `jump.gif`, `hurt.gif`, `eggman.gif`, `po.gif`) e background `fundo.png` salvos em `assets/sprites/sonic/`
+- **Nota:** Este arquivo e carregado mas o card do hub aponta para o emulador Megadrive (ver abaixo)
+
+### Emulador Mega Drive (Sonic)
+
+- **Arquivo:** `jogos/megadrive.js`
+- **Origem:** Codigo original (wrapper); emulador via CDN externo
+- **Dependencia:** [EmulatorJS](https://emulatorjs.org/) — CDN `https://cdn.emulatorjs.org/stable/data/loader.js`
+  - Core: `genesis_plus_gx` (RetroArch/WASM, licenca GPL v2)
+  - EmulatorJS em si: licenca GPL v3
+- **ROM:** `roms/megadrive/sonic.md` — **nao incluido no repositorio**. O usuario deve fornecer o proprio arquivo ROM. Sonic the Hedgehog (Mega Drive) e propriedade da SEGA.
+- **Escalabilidade:** `window.MegadriveGame.abrir(romUrl)` aceita qualquer ROM de Mega Drive. Para adicionar novos jogos, basta adicionar o ROM em `roms/megadrive/` e criar um card no JOGOS array com o caminho correto.
+
 ## Modificacoes na Extracao
 
 1. **Penaltis desacoplado do ManutencaoScreen** — No original, o jogo reutilizava o container e metodos de `ManutencaoScreen`. Na versao standalone, o jogo recebe um container DOM qualquer via `PenaltisGame.abrir(containerEl)`.

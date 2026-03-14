@@ -46,6 +46,14 @@ Runner automatico com tamandua procedural usando IK esqueletica.
 - **Visual:** Parallax com montanhas, arvores e grama
 - **Controles:** Toque/clique em qualquer lugar para pular, ESC para sair
 
+### Sonic (Mega Drive)
+Emulador de Mega Drive rodando Sonic the Hedgehog via EmulatorJS.
+
+- **Core:** `genesis_plus_gx` (RetroArch/WASM) via CDN EmulatorJS
+- **ROM:** `roms/megadrive/sonic.md` — arquivo nao incluso no repo, adicionar manualmente
+- **Controles:** Teclado (setas + Z/X/C) ou gamepad fisico
+- **Escalavel:** `window.MegadriveGame.abrir('roms/megadrive/outro-jogo.md')` para novos ROMs
+
 ## Como Usar
 
 ### Demo rapida
@@ -63,6 +71,8 @@ Abra `index.html` no navegador (ou acesse via Vercel).
 <script src="jogos/reptil.js"></script>
 <script src="jogos/pacman.js"></script>
 <script src="jogos/tamandua.js"></script>
+<script src="jogos/sonic.js"></script>
+<script src="jogos/megadrive.js"></script>
 <script src="jogos/joguinhos-modal.js"></script>
 ```
 
@@ -91,6 +101,11 @@ window.PacmanGame.fechar();
 // Tamandua direto (fullscreen)
 window.TamanduaGame.abrir();
 window.TamanduaGame.fechar();
+
+// Mega Drive Emulator (requer ROM em roms/megadrive/)
+window.MegadriveGame.abrir();                             // carrega sonic.md por padrao
+window.MegadriveGame.abrir('roms/megadrive/outro.md');    // ROM customizado
+window.MegadriveGame.fechar();
 ```
 
 ## Estrutura
@@ -104,9 +119,14 @@ jogos/
   reptil.js             # Jogo Reptil standalone (IK procedural)
   pacman.js             # Jogo Pac-Man standalone
   tamandua.js           # Jogo Tamandua Runner standalone (IK procedural)
+  sonic.js              # Sonic Runner custom (canvas procedural, assets GIF)
+  megadrive.js          # Emulador Mega Drive via EmulatorJS CDN
   joguinhos-modal.js    # Modal de selecao de jogos
 assets/
   sons/                 # Futuros arquivos de audio
+  sprites/sonic/        # GIFs e PNG do Sonic Runner
+roms/
+  megadrive/            # ROMs de Mega Drive (nao inclusos no repo)
 docs/
   ORIGEM.md             # Referencia de onde cada codigo veio
 ```
@@ -121,9 +141,10 @@ Detalhes completos em [`docs/ORIGEM.md`](docs/ORIGEM.md).
 
 ## Tech Stack
 
-- Vanilla JS (zero dependencias)
+- Vanilla JS (zero dependencias proprias)
 - Canvas 2D API
 - Web Audio API (sons programaticos)
 - Material Icons (via CDN)
 - Google Fonts: Russo One, Inter, JetBrains Mono
+- EmulatorJS (CDN) — emulador Mega Drive via WASM
 - Deploy: Vercel (site estatico)
