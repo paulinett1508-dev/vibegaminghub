@@ -5,9 +5,9 @@
 // ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
 //
 // Arquitetura: iframe srcdoc fullscreen — EJS gerencia canvas + gamepad.
-// Gamepad EJS reposicionado para abaixo do canvas via .ejs_virtualGamepad_parent.
-// Botoes B/A estilizados via MutationObserver (classes corretas com underscore).
-// Botao Sair no parent overlay na faixa dos controles (nao sobre o jogo).
+// Gamepad: D-pad + B (grande/azul) + A (menor/vermelho) + Start.
+// Posicao do gamepad calculada via JS apos render do canvas (elimina gap).
+// Escalavel para outras ROMs (A e B sempre presentes, hierarquia visual).
 // =====================================================================
 
 (function () {
@@ -51,14 +51,16 @@
             exitEmulation: false,
         });
 
-        // Gamepad Genesis: D-pad + B (pular) + A (spin) + Start
+        // Gamepad Genesis: D-pad + B (principal/pular) + A (secundario/spin) + Start
         // input_value: A=0, C=1, Start=3, D-pad=4-7, B=8  (genesis_plus_gx)
-        // top/left em % sao relativas ao sub-container EJS (~130px) — NAO ao viewport
-        // Portanto usar apenas `location` para posicionamento; CSS reposiciona o container
+        //
+        // B e A usam coordenadas EXPLICITAS (top/left relativo ao .ejs_virtualGamepad_parent)
+        // Nao usar location:'right' para ambos — EJS os sobrepoeria no mesmo slot 130x130px
+        // Start usa location:'center' (funciona bem por ser unico no centro)
         var ejsGamepad = JSON.stringify([
-            {type: 'dpad',   location: 'left',   inputValues: [4, 5, 6, 7]},
-            {type: 'button', text: 'B', id: 'b', location: 'right', input_value: 8},
-            {type: 'button', text: 'A', id: 'a', location: 'right', input_value: 0},
+            {type: 'dpad',   location: 'left', inputValues: [4, 5, 6, 7]},
+            {type: 'button', text: 'B', id: 'b', top: '12%', left: '67%', input_value: 8},
+            {type: 'button', text: 'A', id: 'a', top: '50%', left: '76%', input_value: 0},
             {type: 'button', text: 'Start', id: 'start', location: 'center', input_value: 3}
         ]);
 
@@ -68,22 +70,26 @@
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#0f172a;width:100%;height:100vh;overflow:hidden}',
-            '#ejs-game{width:100%;height:100%}',
+            '#ejs-game{width:100%;height:100%;background:#0f172a}',
             // Esconde toolbar/menu do EJS
             '.ejs_menu_bar,.ejs-menu{display:none!important}',
-            // Canvas: ocupa apenas a parte superior (deixa espaco para o gamepad)
-            'canvas{max-height:57vh!important;max-width:100%!important;display:block!important;margin:0 auto!important}',
+            // Canvas: largura maxima, sem forcar altura (aspect ratio natural do jogo)
+            'canvas{max-width:100%!important;display:block!important;margin:0 auto!important}',
 
-            // ─── GAMEPAD CONTAINER ───────────────────────────────────────────
-            // Reposiciona o container do gamepad EJS para logo abaixo do canvas
-            // eliminando o gap preto entre jogo e controles
+            // ─── CONTAINER DO GAMEPAD ─────────────────────────────────────────
+            // top inicial: sobrescrito por JS apos medir canvas real
+            // height:auto + overflow:visible: evita cortar Start no rodape
             '.ejs_virtualGamepad_parent{',
-            '  top:57vh!important;bottom:0!important;height:43vh!important;',
+            '  top:57vh!important;',
+            '  bottom:0!important;',
+            '  height:auto!important;',
+            '  overflow:visible!important;',
             '  background:#0f172a!important;',
             '}',
 
             // ─── BOTOES DE ACAO ───────────────────────────────────────────────
-            // Classe CORRETA do EJS: ejs_virtualGamepad_button (underscore)
+            // Classe correta: ejs_virtualGamepad_button (underscore)
+            // Tamanho BASE — refinado por JS (B grande, A menor)
             '.ejs_virtualGamepad_button{',
             '  border-radius:50%!important;',
             '  width:76px!important;height:76px!important;',
@@ -94,12 +100,15 @@
             '  text-shadow:0 2px 6px rgba(0,0,0,.6)!important;',
             '  display:flex!important;align-items:center!important;justify-content:center!important;',
             '}',
-
-            // ─── D-PAD ────────────────────────────────────────────────────────
-            // Classes corretas: ejs_dpad_bar, ejs_dpad_horizontal, ejs_dpad_vertical
+            // D-pad: barras mais contrastadas
             '.ejs_dpad_bar{',
-            '  background:rgba(60,60,60,.6)!important;',
-            '  border-radius:8px!important;',
+            '  background:rgba(90,90,100,.75)!important;',
+            '  border-radius:6px!important;',
+            '}',
+            // Feedback visual ao pressionar
+            '.ejs_virtualGamepad_button_down{',
+            '  opacity:.65!important;',
+            '  transform:scale(.92)!important;',
             '}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
@@ -113,8 +122,7 @@
             'window.EJS_Buttons       = ' + ejsButtons + ';',
             'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
 
-            // MutationObserver: aplica cores nos botoes EJS apos render
-            // Seletor correto: .ejs_virtualGamepad_button (underscore)
+            // MutationObserver: aplica cores e tamanhos nos botoes EJS apos render
             // EJS nao usa data-id — identificar por textContent
             '(function(){',
             '  var _done=new Set();',
@@ -124,31 +132,56 @@
             '      _done.add(b);',
             '      var txt=b.textContent.trim().toUpperCase();',
             '      if(txt==="B"){',
+            // B: principal — grande, azul brilhante
+            '        b.style.setProperty("width","76px","important");',
+            '        b.style.setProperty("height","76px","important");',
+            '        b.style.setProperty("font-size","26px","important");',
             '        b.style.background="linear-gradient(145deg,#3b82f6,#1d4ed8)";',
-            '        b.style.boxShadow="0 0 22px rgba(59,130,246,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
+            '        b.style.boxShadow="0 0 26px rgba(59,130,246,.75),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.55)";',
             '      }else if(txt==="A"){',
+            // A: secundario — menor, vermelho com glow mais discreto
+            '        b.style.setProperty("width","52px","important");',
+            '        b.style.setProperty("height","52px","important");',
+            '        b.style.setProperty("font-size","20px","important");',
             '        b.style.background="linear-gradient(145deg,#ef4444,#b91c1c)";',
-            '        b.style.boxShadow="0 0 22px rgba(239,68,68,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.6)";',
+            '        b.style.boxShadow="0 0 16px rgba(239,68,68,.55),inset 0 -2px 4px rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.5)";',
             '      }else if(/start/i.test(txt)){',
+            // Start: pilula cinza
             '        b.style.setProperty("border-radius","22px","important");',
             '        b.style.setProperty("width","auto","important");',
-            '        b.style.setProperty("padding","11px 22px","important");',
-            '        b.style.background="rgba(50,50,50,.8)";',
+            '        b.style.setProperty("height","auto","important");',
+            '        b.style.setProperty("padding","10px 20px","important");',
+            '        b.style.setProperty("font-size","13px","important");',
+            '        b.style.background="rgba(50,50,60,.85)";',
             '        b.style.letterSpacing="1.5px";',
-            '        b.style.fontSize="13px";',
+            '        b.style.boxShadow="0 2px 8px rgba(0,0,0,.5)";',
             '      }else{',
-            // Botoes extras do genesis (C, X, Y, Z) — estilo neutro discreto
-            '        b.style.background="rgba(40,40,40,.7)";',
-            '        b.style.border="1px solid rgba(255,255,255,.12)";',
+            // Botoes extras (C, X, Y) se aparecerem: estilo neutro discreto
+            '        b.style.background="rgba(40,40,50,.7)";',
+            '        b.style.setProperty("border","1px solid rgba(255,255,255,.12)","important");',
             '      }',
             '    });',
             '  }',
             '  new MutationObserver(_style).observe(document.documentElement,{childList:true,subtree:true});',
             '})();',
-            // Foca canvas ao iniciar (Emscripten precisa de focus)
+
+            // Ao iniciar: foca canvas + reposiciona gamepad colado ao canvas
+            // Elimina o gap preto causado pela diferenca entre max-height:57vh e canvas real
             'window.EJS_onGameStart=function(){',
             '  var c=document.querySelector("canvas");',
             '  if(c){c.setAttribute("tabindex","0");c.focus();}',
+            '  setTimeout(function(){',
+            '    var canvas=document.querySelector("canvas");',
+            '    var gp=document.querySelector(".ejs_virtualGamepad_parent");',
+            '    if(canvas&&gp){',
+            '      var rect=canvas.getBoundingClientRect();',
+            // Gamepad comeca logo abaixo do canvas (+ 2px margem)
+            '      var pct=Math.ceil(((rect.bottom+2)/window.innerHeight)*100);',
+            // Limitar entre 35vh e 60vh para nao ir longe demais
+            '      pct=Math.max(35,Math.min(60,pct));',
+            '      gp.style.setProperty("top",pct+"vh","important");',
+            '    }',
+            '  },700);',
             '};',
             '<\/script>',
             '<script src="' + EJS_CDN + 'loader.js"><\/script>',
@@ -157,27 +190,26 @@
 
         _overlay.appendChild(iframe);
 
-        // --- Botao Sair: na faixa dos controles (abaixo do jogo, nao sobre ele) ---
+        // --- Botao Sair: canto esquerdo, abaixo do jogo (nao centered, nao sobre o jogo) ---
         var exitBtn = document.createElement('button');
         exitBtn.setAttribute('aria-label', 'Sair do jogo');
         exitBtn.innerHTML =
-            '<span class="material-icons" style="font-size:20px;pointer-events:none;">arrow_back</span>' +
-            '<span style="pointer-events:none;margin-left:6px;">Sair</span>';
+            '<span class="material-icons" style="font-size:18px;pointer-events:none;">arrow_back</span>' +
+            '<span style="pointer-events:none;margin-left:5px;">Sair</span>';
         Object.assign(exitBtn.style, {
             position: 'absolute',
-            top: 'calc(57vh + 10px)', left: '50%',
-            transform: 'translateX(-50%)',
+            top: 'calc(57vh + 8px)', left: '12px',
             zIndex: '9200',
             display: 'flex', alignItems: 'center',
-            padding: '8px 14px',
+            padding: '6px 12px',
             background: 'rgba(15,23,42,0.80)',
-            border: '1px solid rgba(255,255,255,0.35)',
-            color: '#fff', borderRadius: '24px',
+            border: '1px solid rgba(255,255,255,0.30)',
+            color: '#fff', borderRadius: '20px',
             cursor: 'pointer',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
-            minWidth: '64px', minHeight: '40px',
-            fontSize: '0.8rem', fontFamily: 'Inter,sans-serif',
+            minWidth: '56px', minHeight: '44px',
+            fontSize: '0.75rem', fontFamily: 'Inter,sans-serif',
             whiteSpace: 'nowrap',
         });
         exitBtn.addEventListener('click', function () { history.back(); });
