@@ -78,12 +78,14 @@
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#000;width:100vw;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%}',
-            // Esconde toda a barra de menu do EJS (toolbar topo + "Rapido/Lento" rodape)
-            '.ejs_menu_bar{display:none!important}',
-            // Centraliza o canvas verticalmente entre o topo e o gamepad (~45vh livre acima)
-            // Mega Drive: aspecto 320:224 → altura do canvas = 70vw em portrait
-            // Posicionar canvas no centro do espaco acima do gamepad virtual
-            '.ejs_canvas{object-position:center calc(50vh - 35vw)!important}',
+            // Esconde toda a barra de menu do EJS
+            '.ejs_menu_bar,.ejs_menu,.ejs_toolbar{display:none!important}',
+            // Força o container EJS a ocupar toda a altura disponivel
+            '.ejs_container{width:100%!important;height:100vh!important;display:flex!important;flex-direction:column!important}',
+            // Area do jogo ocupa espaco restante, canvas alinhado ao topo
+            '.ejs_game_player_wrapper,.ejs_game_player{flex:1!important;display:flex!important;align-items:flex-start!important;justify-content:center!important}',
+            // Canvas nao ultrapassa a largura da tela
+            '.ejs_canvas{max-width:100%!important;max-height:55vh!important}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
@@ -123,22 +125,22 @@
             '<span style="pointer-events:none;margin-left:6px;">Sair</span>';
         Object.assign(exitBtn.style, {
             position:    'absolute',
-            top:         'calc(100vw * 0.7 + 20px)',
-            left:        '50%',
-            transform:   'translateX(-50%)',
+            top:         '12px',
+            left:        '12px',
+            transform:   'none',
             zIndex:      '9200',
             display:     'flex',
             alignItems:  'center',
-            padding:     '10px 20px',
-            background:  'rgba(15,23,42,0.85)',
-            border:      '1px solid rgba(255,255,255,0.45)',
+            padding:     '8px 14px',
+            background:  'rgba(15,23,42,0.80)',
+            border:      '1px solid rgba(255,255,255,0.35)',
             color:       '#fff',
             borderRadius:'24px',
             cursor:      'pointer',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
-            minWidth:    '80px',
-            minHeight:   '44px',
+            minWidth:    '64px',
+            minHeight:   '40px',
             fontSize:    '0.8rem',
             fontFamily:  'Inter,sans-serif',
             whiteSpace:  'nowrap',
