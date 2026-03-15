@@ -1,20 +1,16 @@
 // =====================================================================
-// atari.js — Emulador Atari 2600 via EmulatorJS (CDN)
+// atari.js — Emulador Multi-Atari via EmulatorJS (CDN)
 // =====================================================================
-// Usa o core 'stella' (RetroArch/WASM) carregado dinamicamente.
-// ROMs ficam em assets/roms/atari/ (ex: pong.bin, breakout.bin)
+// Suporta Atari 2600, 5200 e 7800 via cores RetroArch/WASM:
+//   2600 → core "stella"    — ROMs em assets/roms/atari/2600/*.a26
+//   5200 → core "atari800"  — ROMs em assets/roms/atari/5200/*.a52
+//   7800 → core "prosystem" — ROMs em assets/roms/atari/7800/*.a78
 //
-// Arquitetura: seletor de jogo → iframe srcdoc fullscreen
-//   1. abrir()        → mostra grid de jogos disponíveis
-//   2. _abrirJogo()   → cria iframe com EmulatorJS + ROM escolhida
-//   3. fechar()       → remove overlay (chamado via history.back() / joguinhos-modal)
+// Fluxo: Hub → Seletor de Console → Seletor de ROMs → Jogo
 //
-// Controles Atari 2600 (joystick + 1 botão):
-//   - D-pad: esquerda, direita, cima, baixo
-//   - Fire:  botão único (vermelho)
-//
-// Para adicionar uma ROM: colocar o arquivo .bin em assets/roms/atari/
-// e adicionar uma entrada em ROMS_ATARI com o caminho correto.
+// Para adicionar ROMs:
+//   1. Coloque o arquivo na pasta correta (ex: assets/roms/atari/2600/pong.a26)
+//   2. Adicione uma entrada no array de ROMs do console correspondente abaixo
 // =====================================================================
 
 (function () {
@@ -22,130 +18,224 @@
 
     var EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
 
-    // ---- Configuracao dos jogos ----
-    // Adicione aqui os jogos que tiver em assets/roms/atari/
-    var ROMS_ATARI = [
+    // ---- Configuracao por console ----
+    var CONSOLES = [
         {
-            id:   'pong',
-            nome: 'Pong',
-            rom:  'assets/roms/atari/pong.bin',
-            icon: 'sports_tennis',
-            cor:  '#38bdf8'
+            id:   '2600',
+            nome: 'Atari 2600',
+            core: 'stella',
+            icon: 'videogame_asset',
+            cor:  '#e94560',
+            roms: [
+                { id: 'pong',       nome: 'Pong',       rom: 'assets/roms/atari/2600/pong.a26',           icon: 'sports_tennis',         cor: '#38bdf8' },
+                { id: 'breakout',   nome: 'Breakout',   rom: 'assets/roms/atari/2600/breakout.a26',       icon: 'sports_baseball',       cor: '#34d399' },
+                { id: 'invaders',   nome: 'Invasores',  rom: 'assets/roms/atari/2600/spaceinvaders.a26',  icon: 'rocket_launch',         cor: '#818cf8' },
+                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/2600/pacman.a26',         icon: 'circle',                cor: '#fbbf24' },
+                { id: 'pitfall',    nome: 'Pitfall',    rom: 'assets/roms/atari/2600/pitfall.a26',        icon: 'forest',                cor: '#4ade80' },
+                { id: 'kaboom',     nome: 'Kaboom',     rom: 'assets/roms/atari/2600/kaboom.a26',         icon: 'local_fire_department', cor: '#f87171' }
+            ]
         },
         {
-            id:   'breakout',
-            nome: 'Breakout',
-            rom:  'assets/roms/atari/breakout.bin',
-            icon: 'sports_baseball',
-            cor:  '#34d399'
+            id:   '5200',
+            nome: 'Atari 5200',
+            core: 'atari800',
+            icon: 'sports_esports',
+            cor:  '#f59e0b',
+            roms: [
+                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/5200/pacman.a52',         icon: 'circle',                cor: '#fbbf24' },
+                { id: 'berzerk',    nome: 'Berzerk',    rom: 'assets/roms/atari/5200/berzerk.a52',        icon: 'bolt',                  cor: '#f87171' },
+                { id: 'galaxian',   nome: 'Galaxian',   rom: 'assets/roms/atari/5200/galaxian.a52',       icon: 'rocket_launch',         cor: '#818cf8' },
+                { id: 'invaders',   nome: 'Invasores',  rom: 'assets/roms/atari/5200/spaceinvaders.a52',  icon: 'public',                cor: '#38bdf8' },
+                { id: 'missile',    nome: 'Missile',    rom: 'assets/roms/atari/5200/missilecommand.a52', icon: 'gps_fixed',             cor: '#34d399' },
+                { id: 'ballblazer', nome: 'Ballblazer', rom: 'assets/roms/atari/5200/ballblazer.a52',     icon: 'sports_soccer',         cor: '#fb923c' }
+            ]
         },
         {
-            id:   'invaders',
-            nome: 'Invasores',
-            rom:  'assets/roms/atari/spaceinvaders.bin',
-            icon: 'rocket_launch',
-            cor:  '#818cf8'
-        },
-        {
-            id:   'pacman',
-            nome: 'Pac-Man',
-            rom:  'assets/roms/atari/pacman.bin',
-            icon: 'circle',
-            cor:  '#fbbf24'
-        },
-        {
-            id:   'pitfall',
-            nome: 'Pitfall',
-            rom:  'assets/roms/atari/pitfall.bin',
-            icon: 'forest',
-            cor:  '#4ade80'
-        },
-        {
-            id:   'kaboom',
-            nome: 'Kaboom',
-            rom:  'assets/roms/atari/kaboom.bin',
-            icon: 'local_fire_department',
-            cor:  '#f87171'
+            id:   '7800',
+            nome: 'Atari 7800',
+            core: 'prosystem',
+            icon: 'stadia_controller',
+            cor:  '#34d399',
+            roms: [
+                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/7800/pacman.a78',         icon: 'circle',                cor: '#fbbf24' },
+                { id: 'centipede',  nome: 'Centipede',  rom: 'assets/roms/atari/7800/centipede.a78',      icon: 'pest_control',          cor: '#4ade80' },
+                { id: 'digdug',     nome: 'Dig Dug',    rom: 'assets/roms/atari/7800/digdug.a78',         icon: 'terrain',               cor: '#f59e0b' },
+                { id: 'food',       nome: 'Food Fight', rom: 'assets/roms/atari/7800/foodfight.a78',      icon: 'restaurant',            cor: '#f87171' },
+                { id: 'pole',       nome: 'Pole Pos.',  rom: 'assets/roms/atari/7800/poleposition.a78',   icon: 'directions_car',        cor: '#38bdf8' },
+                { id: 'asteroids',  nome: 'Asteroids',  rom: 'assets/roms/atari/7800/asteroids.a78',      icon: 'auto_awesome',          cor: '#818cf8' }
+            ]
         }
     ];
 
     // ---- Estado ----
-    var _overlay = null;
-    var _onKey   = null;
+    var _overlay       = null;
+    var _onKey         = null;
+    var _consoleSel    = null; // console selecionado
 
-    // ---- Seletor de jogos ----
-    function _criarSeletor() {
+    // ============================================================
+    // TELA 1 — Seletor de Console (2600 / 5200 / 7800)
+    // ============================================================
+    function _criarSeletorConsole() {
         _overlay = document.createElement('div');
         _overlay.id = 'atari-overlay';
         Object.assign(_overlay.style, {
-            position:   'fixed',
-            inset:      '0',
-            zIndex:     '9000',
-            background: '#0f172a',
-            display:    'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            overflowY:  'auto',
-            padding:    '72px 24px 40px',
+            position:        'fixed',
+            inset:           '0',
+            zIndex:          '9000',
+            background:      '#0f172a',
+            display:         'flex',
+            flexDirection:   'column',
+            alignItems:      'center',
+            justifyContent:  'flex-start',
+            overflowY:       'auto',
+            padding:         '72px 24px 40px',
             WebkitTapHighlightColor: 'transparent',
         });
         document.body.appendChild(_overlay);
+
+        _renderizarSeletorConsole();
+
+        _onKey = function (e) {
+            if (e.key === 'Escape' && e.target === document.body) history.back();
+        };
+        document.addEventListener('keydown', _onKey);
+    }
+
+    function _renderizarSeletorConsole() {
+        _overlay.innerHTML = '';
 
         // Cabeçalho
         var header = document.createElement('div');
         header.style.cssText = 'text-align:center;margin-bottom:32px;width:100%;';
         header.innerHTML =
             '<div style="font-family:\'Russo One\',sans-serif;font-size:30px;' +
-            'color:#e94560;letter-spacing:2px;text-shadow:0 0 20px rgba(233,69,96,.4);">' +
-            'ATARI 2600</div>' +
+            'color:#e94560;letter-spacing:2px;text-shadow:0 0 20px rgba(233,69,96,.4);">ATARI</div>' +
             '<div style="font-family:Inter,sans-serif;font-size:14px;color:#94a3b8;margin-top:8px;">' +
+            'Escolha o console</div>';
+        _overlay.appendChild(header);
+
+        // Cards de console (1 coluna, grandes)
+        var lista = document.createElement('div');
+        lista.style.cssText =
+            'display:flex;flex-direction:column;gap:14px;width:100%;max-width:360px;';
+
+        CONSOLES.forEach(function (console_) {
+            var card = document.createElement('button');
+            Object.assign(card.style, {
+                background:    'rgba(255,255,255,0.04)',
+                border:        '2px solid ' + console_.cor + '55',
+                borderRadius:  '18px',
+                padding:       '20px 24px',
+                cursor:        'pointer',
+                display:       'flex',
+                alignItems:    'center',
+                gap:           '18px',
+                transition:    'background 0.2s,border-color 0.2s,transform 0.1s',
+                touchAction:   'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+                width:         '100%',
+            });
+            card.innerHTML =
+                '<span class="material-icons" style="font-size:40px;color:' + console_.cor + ';' +
+                'text-shadow:0 0 14px ' + console_.cor + '88;">' + console_.icon + '</span>' +
+                '<div style="text-align:left;">' +
+                  '<div style="font-family:\'Russo One\',sans-serif;font-size:18px;color:#f1f5f9;">' +
+                  console_.nome + '</div>' +
+                  '<div style="font-family:Inter,sans-serif;font-size:12px;color:#64748b;margin-top:2px;">' +
+                  console_.roms.length + ' jogos configurados</div>' +
+                '</div>' +
+                '<span class="material-icons" style="margin-left:auto;color:#475569;font-size:22px;">chevron_right</span>';
+
+            card.addEventListener('mouseenter', function () {
+                card.style.background  = console_.cor + '18';
+                card.style.borderColor = console_.cor + 'aa';
+                card.style.transform   = 'scale(1.02)';
+            });
+            card.addEventListener('mouseleave', function () {
+                card.style.background  = 'rgba(255,255,255,0.04)';
+                card.style.borderColor = console_.cor + '55';
+                card.style.transform   = 'scale(1)';
+            });
+            card.addEventListener('click', function () { _renderizarSeletorROMs(console_); });
+            card.addEventListener('touchend', function (e) {
+                e.preventDefault();
+                _renderizarSeletorROMs(console_);
+            });
+
+            lista.appendChild(card);
+        });
+
+        _overlay.appendChild(lista);
+
+        // Botão voltar (sai do Atari)
+        _overlay.appendChild(_criarBotaoVoltar(function () { history.back(); }));
+    }
+
+    // ============================================================
+    // TELA 2 — Seletor de ROMs
+    // ============================================================
+    function _renderizarSeletorROMs(console_) {
+        _consoleSel = console_;
+        _overlay.innerHTML = '';
+        Object.assign(_overlay.style, {
+            padding:        '72px 24px 40px',
+            justifyContent: 'flex-start',
+            overflowY:      'auto',
+        });
+
+        // Cabeçalho
+        var header = document.createElement('div');
+        header.style.cssText = 'text-align:center;margin-bottom:28px;width:100%;';
+        header.innerHTML =
+            '<div style="font-family:\'Russo One\',sans-serif;font-size:24px;color:' +
+            console_.cor + ';letter-spacing:1px;">' + console_.nome + '</div>' +
+            '<div style="font-family:Inter,sans-serif;font-size:13px;color:#94a3b8;margin-top:6px;">' +
             'Escolha um jogo</div>';
         _overlay.appendChild(header);
 
         // Grid 2 colunas
         var grid = document.createElement('div');
         grid.style.cssText =
-            'display:grid;grid-template-columns:repeat(2,1fr);gap:16px;' +
+            'display:grid;grid-template-columns:repeat(2,1fr);gap:14px;' +
             'width:100%;max-width:420px;';
 
-        ROMS_ATARI.forEach(function (jogo) {
+        console_.roms.forEach(function (jogo) {
             var card = document.createElement('button');
             Object.assign(card.style, {
                 background:    'rgba(255,255,255,0.04)',
                 border:        '2px solid ' + jogo.cor + '55',
-                borderRadius:  '18px',
-                padding:       '28px 12px',
+                borderRadius:  '16px',
+                padding:       '24px 10px',
                 cursor:        'pointer',
                 display:       'flex',
                 flexDirection: 'column',
                 alignItems:    'center',
-                gap:           '12px',
-                minHeight:     '120px',
+                gap:           '10px',
+                minHeight:     '112px',
                 transition:    'background 0.2s,border-color 0.2s,transform 0.1s',
                 touchAction:   'manipulation',
                 WebkitTapHighlightColor: 'transparent',
             });
             card.innerHTML =
-                '<span class="material-icons" style="font-size:44px;color:' + jogo.cor + ';' +
-                'text-shadow:0 0 16px ' + jogo.cor + '88;">' + jogo.icon + '</span>' +
-                '<span style="font-family:\'Russo One\',sans-serif;font-size:13px;' +
-                'color:#f1f5f9;text-align:center;line-height:1.2;">' + jogo.nome + '</span>';
+                '<span class="material-icons" style="font-size:40px;color:' + jogo.cor + ';' +
+                'text-shadow:0 0 14px ' + jogo.cor + '88;">' + jogo.icon + '</span>' +
+                '<span style="font-family:\'Russo One\',sans-serif;font-size:12px;' +
+                'color:#f1f5f9;text-align:center;line-height:1.3;">' + jogo.nome + '</span>';
 
             card.addEventListener('mouseenter', function () {
-                card.style.background     = jogo.cor + '20';
-                card.style.borderColor    = jogo.cor + 'aa';
-                card.style.transform      = 'scale(1.03)';
+                card.style.background  = jogo.cor + '18';
+                card.style.borderColor = jogo.cor + 'aa';
+                card.style.transform   = 'scale(1.04)';
             });
             card.addEventListener('mouseleave', function () {
-                card.style.background     = 'rgba(255,255,255,0.04)';
-                card.style.borderColor    = jogo.cor + '55';
-                card.style.transform      = 'scale(1)';
+                card.style.background  = 'rgba(255,255,255,0.04)';
+                card.style.borderColor = jogo.cor + '55';
+                card.style.transform   = 'scale(1)';
             });
-            card.addEventListener('click', function () { _abrirJogo(jogo); });
+            card.addEventListener('click', function () { _abrirJogo(jogo, console_.core); });
             card.addEventListener('touchend', function (e) {
                 e.preventDefault();
-                _abrirJogo(jogo);
+                _abrirJogo(jogo, console_.core);
             });
 
             grid.appendChild(card);
@@ -153,20 +243,14 @@
 
         _overlay.appendChild(grid);
 
-        // Botão voltar (topo esquerdo)
-        var backBtn = _criarBotaoVoltar(function () { history.back(); });
-        _overlay.appendChild(backBtn);
-
-        // ESC sai
-        _onKey = function (e) {
-            if (e.key === 'Escape' && e.target === document.body) history.back();
-        };
-        document.addEventListener('keydown', _onKey);
+        // Botão voltar ao seletor de consoles
+        _overlay.appendChild(_criarBotaoVoltar(function () { _renderizarSeletorConsole(); }));
     }
 
-    // ---- Emulador ----
-    function _abrirJogo(jogo) {
-        // Limpa seletor (reusa overlay)
+    // ============================================================
+    // TELA 3 — Emulador (iframe EmulatorJS)
+    // ============================================================
+    function _abrirJogo(jogo, core) {
         _overlay.innerHTML = '';
         Object.assign(_overlay.style, {
             padding:        '0',
@@ -176,9 +260,9 @@
 
         var absRom = new URL(jogo.rom, window.location.href).href;
 
-        // Botões EJS: só Restart visível
+        // Botões EJS: apenas Restart
         var ejsButtons = JSON.stringify({
-            playPause: false, restart: true, mute: false, settings: false,
+            playPause: false, restart: true,  mute: false, settings: false,
             fullscreen: false, saveState: false, loadState: false,
             screenRecord: false, gamepad: false, cheat: false,
             volume: false, netplay: false,
@@ -187,20 +271,17 @@
             exitEmulation: false,
         });
 
-        // Gamepad Atari 2600: D-pad + Fire
+        // Gamepad: D-pad + Fire (Atari 2600/5200/7800 usam joystick simples)
         var ejsGamepad = JSON.stringify([
             { type: 'dpad',   location: 'left',  inputValues: [4, 5, 6, 7] },
             { type: 'button', text: 'Fire', id: 'fire', location: 'right', input_value: 8 }
         ]);
 
-        // iframe fullscreen com EmulatorJS (stella = Atari 2600)
         var iframe = document.createElement('iframe');
         Object.assign(iframe.style, {
-            position: 'absolute',
-            inset:    '0',
-            width:    '100%',
-            height:   '100%',
-            border:   'none',
+            position: 'absolute', inset: '0',
+            width: '100%', height: '100%',
+            border: 'none',
         });
         iframe.setAttribute('allowfullscreen', '');
         iframe.setAttribute('allow', 'autoplay; gamepad *');
@@ -214,49 +295,32 @@
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#000;width:100%;height:100vh;overflow:hidden}',
             '#ejs-game{width:100%;height:100%;background:#000}',
-            // Esconde toolbar do EJS
             '.ejs_menu_bar,.ejs-menu{display:none!important}',
-            // Canvas centralizado
             'canvas{max-width:100%!important;display:block!important;margin:0 auto!important}',
-            // Gamepad container
-            '.ejs_virtualGamepad_parent{',
-            '  top:55vh!important;bottom:56px!important;',
-            '  height:auto!important;overflow:visible!important;',
-            '  background:#000!important;',
-            '}',
-            '.ejs_virtualGamepad_right,.ejs_virtualGamepad_left,.ejs_virtualGamepad_bottom{',
-            '  overflow:visible!important;',
-            '}',
-            // Botão Fire
-            '.ejs_virtualGamepad_button{',
-            '  border-radius:50%!important;',
-            '  width:80px!important;height:80px!important;',
-            '  border:2px solid rgba(255,255,255,.22)!important;',
-            '  color:#fff!important;',
-            '  font-size:18px!important;font-weight:bold!important;',
-            '  font-family:"Russo One",sans-serif!important;',
-            '  display:flex!important;align-items:center!important;justify-content:center!important;',
-            '  background:linear-gradient(145deg,#e94560,#b91c1c)!important;',
-            '  box-shadow:0 0 26px rgba(233,69,96,.6),inset 0 -3px 6px rgba(0,0,0,.35)!important;',
-            '}',
-            '.ejs_dpad_bar{',
-            '  background:rgba(90,90,100,.75)!important;border-radius:6px!important;',
-            '}',
-            '.ejs_virtualGamepad_button_down{',
-            '  opacity:.65!important;transform:scale(.9)!important;',
-            '}',
+            '.ejs_virtualGamepad_parent{top:55vh!important;bottom:56px!important;' +
+            'height:auto!important;overflow:visible!important;background:#000!important;}',
+            '.ejs_virtualGamepad_right,.ejs_virtualGamepad_left,.ejs_virtualGamepad_bottom{overflow:visible!important;}',
+            '.ejs_virtualGamepad_button{border-radius:50%!important;' +
+            'width:80px!important;height:80px!important;' +
+            'border:2px solid rgba(255,255,255,.22)!important;' +
+            'color:#fff!important;font-size:18px!important;font-weight:bold!important;' +
+            'font-family:"Russo One",sans-serif!important;' +
+            'display:flex!important;align-items:center!important;justify-content:center!important;' +
+            'background:linear-gradient(145deg,#e94560,#b91c1c)!important;' +
+            'box-shadow:0 0 26px rgba(233,69,96,.6),inset 0 -3px 6px rgba(0,0,0,.35)!important;}',
+            '.ejs_dpad_bar{background:rgba(90,90,100,.75)!important;border-radius:6px!important;}',
+            '.ejs_virtualGamepad_button_down{opacity:.65!important;transform:scale(.9)!important;}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
             'window.EJS_player        = "#ejs-game";',
-            'window.EJS_core          = "stella";',
+            'window.EJS_core          = ' + JSON.stringify(core) + ';',
             'window.EJS_gameUrl       = ' + JSON.stringify(absRom) + ';',
             'window.EJS_pathtodata    = ' + JSON.stringify(EJS_CDN) + ';',
             'window.EJS_color         = "#e94560";',
             'window.EJS_startOnLoaded = true;',
             'window.EJS_Buttons       = ' + ejsButtons + ';',
             'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
-            // Foca canvas ao iniciar + reposiciona gamepad
             'window.EJS_onGameStart = function () {',
             '  var c = document.querySelector("canvas");',
             '  if (c) { c.setAttribute("tabindex","0"); c.focus(); }',
@@ -278,18 +342,21 @@
 
         _overlay.appendChild(iframe);
 
-        // Botão Sair (top-left)
-        var exitBtn = _criarBotaoVoltar(function () { history.back(); });
-        _overlay.appendChild(exitBtn);
+        // Botão Sair volta ao seletor do console
+        _overlay.appendChild(_criarBotaoVoltar(function () {
+            _renderizarSeletorROMs(_consoleSel);
+        }));
     }
 
-    // ---- Helpers ----
+    // ============================================================
+    // Helper: botão voltar padrão
+    // ============================================================
     function _criarBotaoVoltar(onClick) {
         var btn = document.createElement('button');
-        btn.setAttribute('aria-label', 'Sair do jogo');
+        btn.setAttribute('aria-label', 'Voltar');
         btn.innerHTML =
             '<span class="material-icons" style="font-size:18px;pointer-events:none;">arrow_back</span>' +
-            '<span style="pointer-events:none;margin-left:5px;">Sair</span>';
+            '<span style="pointer-events:none;margin-left:5px;">Voltar</span>';
         Object.assign(btn.style, {
             position:   'fixed',
             top:        '16px',
@@ -315,11 +382,13 @@
         return btn;
     }
 
-    // ---- API pública ----
+    // ============================================================
+    // API pública
+    // ============================================================
     var AtariGame = {
         abrir: function () {
             if (_overlay) return;
-            _criarSeletor();
+            _criarSeletorConsole();
         },
 
         fechar: function () {
@@ -331,6 +400,7 @@
                 _overlay.remove();
                 _overlay = null;
             }
+            _consoleSel = null;
         }
     };
 
