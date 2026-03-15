@@ -78,6 +78,25 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 - **ROM:** `roms/megadrive/sonic.md` — **nao incluido no repositorio**. O usuario deve fornecer o proprio arquivo ROM. Sonic the Hedgehog (Mega Drive) e propriedade da SEGA.
 - **Escalabilidade:** `window.MegadriveGame.abrir(romUrl)` aceita qualquer ROM de Mega Drive. Para adicionar novos jogos, basta adicionar o ROM em `roms/megadrive/` e criar um card no JOGOS array com o caminho correto.
 
+### Emulador Atari 2600
+
+- **Arquivo:** `jogos/atari.js`
+- **Origem:** Codigo original (wrapper); emulador via CDN externo
+- **Dependencia:** [EmulatorJS](https://emulatorjs.org/) — CDN `https://cdn.emulatorjs.org/stable/data/loader.js`
+  - Core: `stella` (RetroArch/WASM, licenca GPL v2) — emula Atari 2600
+  - EmulatorJS em si: licenca GPL v3
+- **ROMs:** `assets/roms/atari/*.bin` — **fornecidas pelo usuario**. ROMs comerciais sao propriedade dos detentores originais (Atari, Inc. / Atari SA). Nao incluas ROMs comerciais no repositorio sem autorizacao.
+- **Jogos configurados** (coloque os .bin em `assets/roms/atari/`):
+  - `pong.bin` — Pong
+  - `breakout.bin` — Breakout
+  - `spaceinvaders.bin` — Space Invaders
+  - `pacman.bin` — Pac-Man
+  - `pitfall.bin` — Pitfall!
+  - `kaboom.bin` — Kaboom!
+- **Escalabilidade:** Para adicionar novos jogos, adicione o .bin em `assets/roms/atari/` e insira uma entrada no array `ROMS_ATARI` em `jogos/atari.js`.
+- **Arquitetura:** Seletor de jogos proprio → iframe srcdoc com EmulatorJS (mesmo padrao do `megadrive.js`)
+- **Controles:** D-pad + botao Fire (joystick Atari 2600 padrao)
+
 ## Modificacoes na Extracao
 
 1. **Penaltis desacoplado do ManutencaoScreen** — No original, o jogo reutilizava o container e metodos de `ManutencaoScreen`. Na versao standalone, o jogo recebe um container DOM qualquer via `PenaltisGame.abrir(containerEl)`.
