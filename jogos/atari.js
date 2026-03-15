@@ -1,10 +1,10 @@
 // =====================================================================
-// atari.js — Emulador Multi-Atari via EmulatorJS (CDN)
+// atari.js — Emulador Multi-Atari
 // =====================================================================
-// Suporta Atari 2600, 5200 e 7800 via cores RetroArch/WASM:
-//   2600 → core "stella"    — ROMs em assets/roms/atari/2600/*.a26
-//   5200 → core "atari800"  — ROMs em assets/roms/atari/5200/*.a52
-//   7800 → core "prosystem" — ROMs em assets/roms/atari/7800/*.a78
+// Suporta Atari 2600, 5200 e 7800:
+//   2600 → Javatari.js (self-hosted) — ROMs em assets/roms/atari/2600/*.a26
+//   5200 → EmulatorJS core "atari800" — ROMs em assets/roms/atari/5200/*.bin
+//   7800 → EmulatorJS core "prosystem" — ROMs em assets/roms/atari/7800/*.a78
 //
 // Fluxo: Hub → Seletor de Console → Seletor de ROMs → Jogo
 //
@@ -24,7 +24,7 @@
         {
             id:   '2600',
             nome: 'Atari 2600',
-            core: 'stella',
+            core: 'javatari',
             icon: 'videogame_asset',
             cor:  '#e94560',
             roms: [
@@ -128,6 +128,9 @@
                 touchAction:   'manipulation',
                 WebkitTapHighlightColor: 'transparent',
                 width:         '100%',
+                overflow:      'hidden',
+                minWidth:      '0',
+                boxSizing:     'border-box',
             });
             card.innerHTML =
                 '<span class="material-icons" style="font-size:40px;color:' + console_.cor + ';' +
@@ -242,7 +245,7 @@
     }
 
     // ============================================================
-    // TELA 3 — Emulador (iframe EmulatorJS)
+    // TELA 3 — Emulador
     // ============================================================
     function _abrirJogo(jogo, core) {
         _overlay.innerHTML = '';
@@ -258,6 +261,58 @@
             window.location.href
         ).href;
 
+        if (core === 'javatari') {
+            _abrirJogoJavatari(jogo, absRom);
+        } else {
+            _abrirJogoEJS(jogo, core, absRom);
+        }
+    }
+
+    // ---- Atari 2600: Javatari.js (self-hosted) ----
+    function _abrirJogoJavatari(jogo, absRom) {
+        var javatariSrc = new URL('/assets/libs/javatari/javatari.js', window.location.href).href;
+
+        var iframe = document.createElement('iframe');
+        Object.assign(iframe.style, {
+            position: 'absolute', inset: '0',
+            width: '100%', height: '100%',
+            border: 'none',
+        });
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('allow', 'autoplay; gamepad *');
+
+        iframe.srcdoc = [
+            '<!DOCTYPE html><html><head>',
+            '<meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">',
+            '<style>',
+            '*{margin:0;padding:0;box-sizing:border-box}',
+            'body{background:#000;width:100%;height:100vh;overflow:hidden}',
+            '#javatari-screen{width:100%!important;height:100vh!important}',
+            '</style></head><body>',
+            '<script>',
+            'Javatari={',
+            '  CARTRIDGE_URL:' + JSON.stringify(absRom) + ',',
+            '  AUTO_START:true,',
+            '  SCREEN_FULLSCREEN_MODE:-2,',
+            '  ALLOW_URL_PARAMETERS:false,',
+            '  CARTRIDGE_SHOW_RECENT:false,',
+            '  CARTRIDGE_CHANGE_DISABLED:true',
+            '};',
+            '<\/script>',
+            '<div id="javatari-screen"></div>',
+            '<script src="' + javatariSrc + '"><\/script>',
+            '</body></html>',
+        ].join('');
+
+        _overlay.appendChild(iframe);
+        _overlay.appendChild(_criarBotaoVoltar(function () {
+            _renderizarSeletorROMs(_consoleSel);
+        }));
+    }
+
+    // ---- Atari 5200 / 7800: EmulatorJS ----
+    function _abrirJogoEJS(jogo, core, absRom) {
         // Botões EJS: apenas Restart
         var ejsButtons = JSON.stringify({
             playPause: false, restart: true,  mute: false, settings: false,
@@ -269,7 +324,7 @@
             exitEmulation: false,
         });
 
-        // Gamepad: D-pad + Fire (Atari 2600/5200/7800 usam joystick simples)
+        // Gamepad: D-pad + Fire (Atari 5200/7800 usam joystick simples)
         var ejsGamepad = JSON.stringify([
             { type: 'dpad',   location: 'left',  inputValues: [4, 5, 6, 7] },
             { type: 'button', text: 'Fire', id: 'fire', location: 'right', input_value: 8 }
@@ -339,8 +394,6 @@
         ].join('');
 
         _overlay.appendChild(iframe);
-
-        // Botão Sair volta ao seletor do console
         _overlay.appendChild(_criarBotaoVoltar(function () {
             _renderizarSeletorROMs(_consoleSel);
         }));
