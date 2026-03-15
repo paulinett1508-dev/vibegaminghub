@@ -269,7 +269,45 @@
     }
 
     // ---- Atari 2600: Javatari.js (self-hosted) ----
+    // ROM buscada no contexto pai (sem COEP/CORP) e passada como data URL base64
+    // para evitar que o iframe srcdoc tente fazer fetch externo (que é bloqueado pelo COEP).
     function _abrirJogoJavatari(jogo, absRom) {
+        var loading = document.createElement('div');
+        Object.assign(loading.style, {
+            position: 'absolute', inset: '0',
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: '12px',
+            color: '#e94560',
+            fontFamily: '\'Russo One\',sans-serif',
+            fontSize: '20px',
+        });
+        loading.innerHTML =
+            '<span class="material-icons" style="font-size:48px;">hourglass_top</span>' +
+            '<span>' + jogo.nome + '</span>';
+        _overlay.appendChild(loading);
+
+        fetch(absRom)
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.arrayBuffer();
+            })
+            .then(function (buf) {
+                var bytes = new Uint8Array(buf);
+                var binary = '';
+                for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                var dataUrl = 'data:application/octet-stream;base64,' + btoa(binary);
+                loading.remove();
+                _iniciarIframeJavatari(dataUrl);
+            })
+            .catch(function (err) {
+                loading.innerHTML =
+                    '<span class="material-icons" style="font-size:40px;color:#f87171;">error</span>' +
+                    '<span style="color:#f87171;font-size:14px;">Erro ao carregar ROM</span>';
+                console.error('[AtariGame] Falha ROM:', err);
+            });
+    }
+
+    function _iniciarIframeJavatari(cartridgeUrl) {
         var javatariSrc = new URL('/assets/libs/javatari/javatari.js', window.location.href).href;
 
         var iframe = document.createElement('iframe');
@@ -292,7 +330,7 @@
             '</style></head><body>',
             '<script>',
             'Javatari={',
-            '  CARTRIDGE_URL:' + JSON.stringify(absRom) + ',',
+            '  CARTRIDGE_URL:' + JSON.stringify(cartridgeUrl) + ',',
             '  AUTO_START:true,',
             '  SCREEN_FULLSCREEN_MODE:0,',
             '  ALLOW_URL_PARAMETERS:false,',
