@@ -227,13 +227,153 @@ git commit -m "chore(deps): atualizar agnostic-core"
 
 ## Protocolo de Planejamento
 
-**ANTES de implementar qualquer mudanca significativa:**
-1. Consultar skills relevantes do agnostic-core
-2. Criar planejamento com TodoWrite
-3. Apresentar ao usuario
-4. Aguardar aprovacao
-5. Executar
-6. Auditar com SPARC se for novo jogo ou mudanca estrutural
+**NUNCA programe sem ANTES: planejar → listar tarefas → questionar o usuario → aguardar aprovacao.**
+
+### Fase 1: PLANEJAMENTO (antes de tocar em codigo)
+1. Ler e analisar o pedido
+2. Consultar skills relevantes do agnostic-core
+3. Identificar todos os arquivos afetados
+4. Mapear dependencias entre tarefas
+5. Listar riscos e consideracoes
+6. Criar lista de tarefas atomicas com TodoWrite
+
+### Fase 2: VALIDACAO (antes de executar)
+1. Apresentar o plano completo ao usuario
+2. Perguntar: "Esse plano faz sentido? Posso prosseguir?"
+3. **AGUARDAR aprovacao explicita**
+
+### Fase 3: EXECUCAO (apos aprovacao)
+1. Executar uma tarefa por vez
+2. Reportar progresso em tempo real
+3. Marcar como concluida imediatamente apos terminar
+
+### Fase 3.5: VERIFICACAO (antes de declarar pronto)
+
+| Tipo de Mudanca | Verificacao Minima |
+|---|---|
+| Visual/Canvas (novo jogo, redesign) | Checar console, testar interacao mouse + touch |
+| Audio | Verificar cleanup de AudioContext, testar som em interacoes |
+| JS (logica, fisica, IA) | Testar edge cases, checar memory leaks no fechar() |
+| CSS/HTML (hub, splash) | Confirmar render, checar responsivo mobile |
+| Config (vercel.json) | Validar JSON, testar headers |
+
+**Excecoes (pular planejamento):**
+- Bypass explicito do usuario
+- Tarefa trivial (1 acao obvia)
+- Continuacao de plano ja aprovado
+
+---
+
+## Protocolo de Bug Fix
+
+Recebeu bug → **Investigar** (reproduzir) → **Identificar causa raiz** → **Corrigir** (cirurgico, S.A.I.S) → **Verificar** (Fase 3.5) → **Reportar**
+
+**Regras:**
+- O usuario NAO guia passo a passo — voce resolve
+- Se algo quebrar apos fix → corrija sem esperar instrucao
+- Zero fixes temporarios — sempre causa raiz
+- NUNCA use `console.log` de debug em producao
+
+---
+
+## Principio S.A.I.S
+
+Framework de decisao para QUALQUER mudanca:
+- **S (Solicitar)** → Ler o que existe (NUNCA pergunte "onde fica o arquivo?" — busque sozinho)
+- **A (Analisar)** → Por que funciona assim?
+- **I (Identificar dependencias)** → O que quebra se eu mudar?
+- **S (Alterar)** → Mudanca minima e cirurgica
+
+---
+
+## Sistema de Checklists por Tipo de Tarefa
+
+Antes de executar qualquer tarefa, consultar o checklist correspondente:
+
+**Se envolve Visual/Canvas (novo jogo, animacao, render):**
+- Verificar tokens de cor existentes em `index.html` (nunca hardcoded)
+- Consultar jogos existentes antes de criar padroes novos (reusar IK, fisica, glow)
+- Checar animacoes/transicoes ja definidas nos jogos existentes
+- Seguir guidelines de design para criancas (alvos 64px+, espacamento 20px+)
+- requestAnimationFrame obrigatorio (nao setInterval)
+- Cleanup no `fechar()`: cancelAnimationFrame + removeEventListener
+
+**Se envolve Audio:**
+- Criar helper de som dentro da IIFE, nao como global
+- Web Audio API para sons sintetizados, arquivos para qualidade
+- Cleanup obrigatorio: suspender/fechar AudioContext no `fechar()`
+- Todo toque deve produzir som + animacao visual
+
+**Se envolve HTML/CSS (hub, splash, layout):**
+- Verificar CSS custom properties existentes em `index.html`
+- Reutilizar tokens de cor, espacamento, sombra — nunca hardcoded
+- Manter dark mode (#0f172a, #1e293b)
+- Fontes: Russo One (titulos), JetBrains Mono (numeros), Inter (corpo)
+- NUNCA emojis — Material Icons CDN
+
+**Se envolve novo jogo:**
+- Seguir checklist completo "Novo Jogo" na secao Coding Standards
+- Auditar com SPARC antes de merge
+
+---
+
+## Pipeline de Qualidade Frontend
+
+Sequencia obrigatoria para qualquer mudanca visual:
+
+```
+1. DESIGN      → Definir direcao estetica (cores, layout, motion, feel infantil)
+2. GOVERNANCA  → Checar tokens CSS existentes, reutilizar, prevenir duplicacao
+3. IMPLEMENTACAO → Codigo final seguindo decisoes anteriores
+```
+
+**Regra:** Checklist nao consultado no planejamento = checklist esquecido na execucao.
+
+---
+
+## Principios de Engenharia
+
+- **Simplicidade:** mudanca mais simples possivel, sem melhorias alem do pedido (YAGNI)
+- **Causa raiz:** investigar o problema real, zero fixes temporarios
+- **Autonomia:** NUNCA pergunte "onde fica o arquivo?" — busque sozinho
+  - *Excecao:* decisoes de negocio ou ambiguidade de requisito — ai sim, pergunte
+- **Sem over-engineering:** 3 linhas similares > abstracao prematura
+- **Mudanca minima:** nao refatore codigo ao redor do que foi pedido
+- **Sem comentarios obvios:** so comentar onde a logica nao e auto-evidente
+
+---
+
+## Anti-Patterns
+
+| Pensamento | Realidade |
+|---|---|
+| "E simples, nao precisa de plano" | Projetos simples sao onde suposicoes nao examinadas causam mais retrabalho |
+| "Deixa eu investigar antes de seguir o checklist" | Checklist ANTES de investigar — ele diz COMO investigar |
+| "Vou so fazer essa coisinha primeiro" | Checar protocolo ANTES de fazer qualquer coisa |
+| "Ja sei como funciona" | Conhecer o conceito != seguir o processo. Siga. |
+| "Vou melhorar o codigo ao redor tambem" | Escopo minimo. So o que foi pedido. |
+| "setInterval e mais simples" | requestAnimationFrame SEMPRE para game loops |
+
+---
+
+## Sistema de Auto-Aprendizado
+
+Apos QUALQUER correcao do usuario:
+1. Registrar a licao aprendida com categoria (CANVAS, AUDIO, LOGICA, PROCESSO, DESIGN)
+2. 3+ licoes na mesma categoria → propor nova regra para CLAUDE.md
+3. Licao critica → adicionar as regras imediatamente
+
+---
+
+## Workflows Comuns
+
+```
+Novo jogo:       Planejar → Pesquisar jogos existentes → Especificar → Design → Governanca CSS → Implementar → SPARC → Commit
+Feature/melhoria: Planejar → Pesquisar → Especificar → Implementar → Verificar → Commit
+Bug fix:          Reproduzir → Causa raiz → Corrigir (S.A.I.S) → Verificar → Commit
+Performance:      Audit Canvas → Audit Audio → Corrigir → Verificar FPS/Memory → Commit
+Refactor:         Mapear dependencias → Extrair → Validar zero quebra → SPARC → Commit
+```
 
 ---
 
