@@ -19,6 +19,7 @@
     var EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
 
     // ---- Configuracao por console ----
+    // ROMs em assets/roms/atari/<console>/  — nomes exatos dos arquivos
     var CONSOLES = [
         {
             id:   '2600',
@@ -27,12 +28,11 @@
             icon: 'videogame_asset',
             cor:  '#e94560',
             roms: [
-                { id: 'pong',       nome: 'Pong',       rom: 'assets/roms/atari/2600/pong.a26',           icon: 'sports_tennis',         cor: '#38bdf8' },
-                { id: 'breakout',   nome: 'Breakout',   rom: 'assets/roms/atari/2600/breakout.a26',       icon: 'sports_baseball',       cor: '#34d399' },
-                { id: 'invaders',   nome: 'Invasores',  rom: 'assets/roms/atari/2600/spaceinvaders.a26',  icon: 'rocket_launch',         cor: '#818cf8' },
-                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/2600/pacman.a26',         icon: 'circle',                cor: '#fbbf24' },
-                { id: 'pitfall',    nome: 'Pitfall',    rom: 'assets/roms/atari/2600/pitfall.a26',        icon: 'forest',                cor: '#4ade80' },
-                { id: 'kaboom',     nome: 'Kaboom',     rom: 'assets/roms/atari/2600/kaboom.a26',         icon: 'local_fire_department', cor: '#f87171' }
+                { id: 'breakout',  nome: 'Breakout',   rom: 'assets/roms/atari/2600/Breakout (USA).a26',                                          icon: 'sports_baseball',       cor: '#34d399' },
+                { id: 'indy500',   nome: 'Indy 500',   rom: 'assets/roms/atari/2600/Indy 500 (USA).a26',                                          icon: 'directions_car',        cor: '#f59e0b' },
+                { id: 'kaboom',    nome: 'Kaboom!',     rom: 'assets/roms/atari/2600/Kaboom! (USA).a26',                                           icon: 'local_fire_department', cor: '#f87171' },
+                { id: 'pitfall',   nome: 'Pitfall!',   rom: 'assets/roms/atari/2600/Pitfall! - Pitfall Harry\'s Jungle Adventure (USA).a26',      icon: 'forest',                cor: '#4ade80' },
+                { id: 'riverraid', nome: 'River Raid', rom: 'assets/roms/atari/2600/River Raid II (USA).a26',                                     icon: 'water',                 cor: '#38bdf8' }
             ]
         },
         {
@@ -42,12 +42,9 @@
             icon: 'sports_esports',
             cor:  '#f59e0b',
             roms: [
-                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/5200/pacman.a52',         icon: 'circle',                cor: '#fbbf24' },
-                { id: 'berzerk',    nome: 'Berzerk',    rom: 'assets/roms/atari/5200/berzerk.a52',        icon: 'bolt',                  cor: '#f87171' },
-                { id: 'galaxian',   nome: 'Galaxian',   rom: 'assets/roms/atari/5200/galaxian.a52',       icon: 'rocket_launch',         cor: '#818cf8' },
-                { id: 'invaders',   nome: 'Invasores',  rom: 'assets/roms/atari/5200/spaceinvaders.a52',  icon: 'public',                cor: '#38bdf8' },
-                { id: 'missile',    nome: 'Missile',    rom: 'assets/roms/atari/5200/missilecommand.a52', icon: 'gps_fixed',             cor: '#34d399' },
-                { id: 'ballblazer', nome: 'Ballblazer', rom: 'assets/roms/atari/5200/ballblazer.a52',     icon: 'sports_soccer',         cor: '#fb923c' }
+                { id: 'defender',  nome: 'Defender',   rom: 'assets/roms/atari/5200/Defender.bin',        icon: 'shield',                cor: '#818cf8' },
+                { id: 'frogger',   nome: 'Frogger',    rom: 'assets/roms/atari/5200/Frogger I.bin',       icon: 'cruelty_free',          cor: '#4ade80' },
+                { id: 'popeye',    nome: 'Popeye',     rom: 'assets/roms/atari/5200/Popeye.bin',          icon: 'fitness_center',        cor: '#38bdf8' }
             ]
         },
         {
@@ -57,12 +54,9 @@
             icon: 'stadia_controller',
             cor:  '#34d399',
             roms: [
-                { id: 'pacman',     nome: 'Pac-Man',    rom: 'assets/roms/atari/7800/pacman.a78',         icon: 'circle',                cor: '#fbbf24' },
-                { id: 'centipede',  nome: 'Centipede',  rom: 'assets/roms/atari/7800/centipede.a78',      icon: 'pest_control',          cor: '#4ade80' },
-                { id: 'digdug',     nome: 'Dig Dug',    rom: 'assets/roms/atari/7800/digdug.a78',         icon: 'terrain',               cor: '#f59e0b' },
-                { id: 'food',       nome: 'Food Fight', rom: 'assets/roms/atari/7800/foodfight.a78',      icon: 'restaurant',            cor: '#f87171' },
-                { id: 'pole',       nome: 'Pole Pos.',  rom: 'assets/roms/atari/7800/poleposition.a78',   icon: 'directions_car',        cor: '#38bdf8' },
-                { id: 'asteroids',  nome: 'Asteroids',  rom: 'assets/roms/atari/7800/asteroids.a78',      icon: 'auto_awesome',          cor: '#818cf8' }
+                { id: 'asteroids', nome: 'Asteroids',   rom: 'assets/roms/atari/7800/Asteroids.A78',                          icon: 'auto_awesome',   cor: '#818cf8' },
+                { id: 'donkeykong',nome: 'Donkey Kong', rom: 'assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78',         icon: 'emoji_nature',   cor: '#f59e0b' },
+                { id: 'f18',       nome: 'F-18 Hornet', rom: 'assets/roms/atari/7800/F-18 Hornet (1988) (Absolute) [b2].a78', icon: 'flight',         cor: '#38bdf8' }
             ]
         }
     ];
@@ -258,7 +252,11 @@
             overflowY:      'hidden',
         });
 
-        var absRom = new URL(jogo.rom, window.location.href).href;
+        // Codifica cada segmento do path para suportar espaços e caracteres especiais nos nomes dos arquivos
+        var absRom = new URL(
+            jogo.rom.split('/').map(encodeURIComponent).join('/'),
+            window.location.href
+        ).href;
 
         // Botões EJS: apenas Restart
         var ejsButtons = JSON.stringify({
