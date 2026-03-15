@@ -51,7 +51,7 @@
             id:   '7800',
             nome: 'Atari 7800',
             core: 'prosystem',
-            icon: 'stadia_controller',
+            icon: 'gamepad',
             cor:  '#34d399',
             roms: [
                 { id: 'asteroids', nome: 'Asteroids',   rom: 'assets/roms/atari/7800/Asteroids.A78',                          icon: 'auto_awesome',   cor: '#818cf8' },
@@ -294,7 +294,7 @@
             'Javatari={',
             '  CARTRIDGE_URL:' + JSON.stringify(absRom) + ',',
             '  AUTO_START:true,',
-            '  SCREEN_FULLSCREEN_MODE:-2,',
+            '  SCREEN_FULLSCREEN_MODE:0,',
             '  ALLOW_URL_PARAMETERS:false,',
             '  CARTRIDGE_SHOW_RECENT:false,',
             '  CARTRIDGE_CHANGE_DISABLED:true',
