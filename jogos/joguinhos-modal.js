@@ -79,6 +79,14 @@
             }
         },
         {
+            id: 'aranha',
+            nome: 'Aranha',
+            icon: 'pest_control',
+            cor: 'linear-gradient(135deg,#1a1a2e,#6c2bd9)',
+            abrir: function () { if (window.AranhaGame) window.AranhaGame.abrir(); },
+            fechar: function () { if (window.AranhaGame) window.AranhaGame.fechar(); }
+        },
+        {
             id: 'sonic',
             nome: 'Sonic',
             icon: 'speed',
