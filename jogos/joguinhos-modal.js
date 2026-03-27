@@ -87,6 +87,14 @@
             fechar: function () { if (window.AranhaGame) window.AranhaGame.fechar(); }
         },
         {
+            id: 'arco',
+            nome: 'Arco',
+            icon: 'sports',
+            cor: 'linear-gradient(135deg, #1a3a1a, #2d7a2d)',
+            abrir: function () { if (window.ArcoGame) window.ArcoGame.abrir(); },
+            fechar: function () { if (window.ArcoGame) window.ArcoGame.fechar(); }
+        },
+        {
             id: 'sonic',
             nome: 'Sonic',
             icon: 'speed',
