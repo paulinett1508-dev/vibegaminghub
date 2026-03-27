@@ -240,8 +240,9 @@
 
         function aim(e) {
             var point = getMouseSVG(e);
+            // Mantém cursor à esquerda do pivô (não empurrar o arco)
             point.x = Math.min(point.x, pivot.x - 7);
-            point.y = Math.max(point.y, pivot.y + 7);
+            // Sem restrição vertical: permite mirar para cima ou para baixo
             var dx = point.x - pivot.x;
             var dy = point.y - pivot.y;
             var angle    = Math.atan2(dy, dx) + randomAngle;
@@ -251,23 +252,23 @@
             if (distance > 5) SomArco.tensao(distance);
 
             var scale = Math.min(Math.max(distance / 30, 1), 2);
-            TweenMax.to('#arco-bow', 0.3, {
+            TweenMax.to('#arco-bow', 0.1, {
                 scaleX: scale,
                 rotation: bowAngle + 'rad',
                 transformOrigin: 'right center'
             });
-            TweenMax.to('.arrow-angle', 0.3, {
+            TweenMax.to('.arrow-angle', 0.1, {
                 rotation: bowAngle + 'rad',
                 svgOrigin: '100 250'
             });
-            TweenMax.to('.arrow-angle use', 0.3, { x: -distance });
-            TweenMax.to('#arco-bow polyline', 0.3, {
+            TweenMax.to('.arrow-angle use', 0.1, { x: -distance });
+            TweenMax.to('#arco-bow polyline', 0.1, {
                 attr: { points: '88,200 ' + Math.min(pivot.x - (1 / scale) * distance, 88) + ',250 88,300' }
             });
             var radius   = distance * 9;
             var offset   = { x: Math.cos(bowAngle) * radius, y: Math.sin(bowAngle) * radius };
             var arcWidth = offset.x * 3;
-            TweenMax.to('#arco-arc', 0.3, {
+            TweenMax.to('#arco-arc', 0.1, {
                 attr: {
                     d: 'M100,250c' + offset.x + ',' + offset.y + ',' +
                        (arcWidth - offset.x) + ',' + (offset.y + 50) + ',' + arcWidth + ',50'
@@ -404,6 +405,9 @@
             'cursor:pointer', 'z-index:10',
             'display:flex', 'align-items:center', 'justify-content:center'
         ].join(';');
+        // Impede que o click no botão dispare os listeners de jogo (draw/loose)
+        btnFechar.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+        btnFechar.addEventListener('mouseup',   function (e) { e.stopPropagation(); });
         btnFechar.onclick = function () {
             window.fecharJoguinhos ? window.fecharJoguinhos() : fechar();
         };
@@ -412,17 +416,21 @@
         document.body.appendChild(overlay);
 
         // Touch → simula eventos de mouse para o jogo original
+        // Ignora toques no botão fechar para que o click nativo funcione
         _onTouchStart = function (e) {
+            if (btnFechar.contains(e.target)) return;
             e.preventDefault();
             var t = e.touches[0];
             window.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
         };
         _onTouchMove = function (e) {
+            if (btnFechar.contains(e.target)) return;
             e.preventDefault();
             var t = e.touches[0];
             window.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
         };
         _onTouchEnd = function (e) {
+            if (btnFechar.contains(e.target)) return;
             e.preventDefault();
             window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         };
