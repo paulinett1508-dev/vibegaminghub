@@ -135,7 +135,7 @@
     }
     #gameover-title {
       font-family: 'Russo One', Impact, sans-serif;
-      font-size: clamp(52px, 13vw, 120px);
+      font-size: clamp(32px, 8vw, 72px);
       color: #ff4757;
       text-shadow: 0 0 40px rgba(255,71,87,0.8), 0 4px 12px rgba(0,0,0,0.9);
       transform: scale(0);
@@ -781,18 +781,21 @@
     // TOUCH → MOUSE
     // =========================================================
     document.body.addEventListener('touchstart', function (e) {
+      if (e.target.closest('#gameover-screen, #win-screen')) return;
       e.preventDefault();
       var t = e.touches[0];
       window.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
     }, { passive: false });
 
     document.body.addEventListener('touchmove', function (e) {
+      if (e.target.closest('#gameover-screen, #win-screen')) return;
       e.preventDefault();
       var t = e.touches[0];
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY, bubbles: true }));
     }, { passive: false });
 
     document.body.addEventListener('touchend', function (e) {
+      if (e.target.closest('#gameover-screen, #win-screen')) return;
       e.preventDefault();
       window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     }, { passive: false });
