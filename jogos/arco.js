@@ -142,40 +142,40 @@
     // =========================================================
 
     var SVG_HTML = [
-        '<svg id="game" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
+        '<svg id="arco-game" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
         '     viewBox="0 0 1000 400" overflow="visible"',
         '     style="width:100%;height:100%;position:absolute;top:0;left:0;">',
-        '  <linearGradient id="ArcGradient">',
+        '  <linearGradient id="arco-ArcGradient">',
         '    <stop offset="0" stop-color="#fff" stop-opacity=".2"/>',
         '    <stop offset="50%" stop-color="#fff" stop-opacity="0"/>',
         '  </linearGradient>',
-        '  <path id="arc" fill="none" stroke="url(#ArcGradient)" stroke-width="4"',
+        '  <path id="arco-arc" fill="none" stroke="url(#arco-ArcGradient)" stroke-width="4"',
         '        d="M100,250c250-400,550-400,800,0" pointer-events="none"/>',
         '  <defs>',
-        '    <g id="arrow">',
+        '    <g id="arco-arrow">',
         '      <line x2="60" fill="none" stroke="#888" stroke-width="2"/>',
         '      <polygon fill="#888" points="64 0 58 2 56 0 58 -2"/>',
         '      <polygon fill="#88ce02" points="2 -3 -4 -3 -1 0 -4 3 2 3 5 0"/>',
         '    </g>',
         '  </defs>',
-        '  <g id="target">',
+        '  <g id="arco-target">',
         '    <path fill="#FFF" d="M924.2,274.2c-21.5,21.5-45.9,19.9-52,3.2c-4.4-12.1,2.4-29.2,14.2-41c11.8-11.8,29-18.6,41-14.2 C944.1,228.3,945.7,252.8,924.2,274.2z"/>',
         '    <path fill="#F4531C" d="M915.8,265.8c-14.1,14.1-30.8,14.6-36,4.1c-4.1-8.3,0.5-21.3,9.7-30.5s22.2-13.8,30.5-9.7 C930.4,235,929.9,251.7,915.8,265.8z"/>',
         '    <path fill="#FFF" d="M908.9,258.9c-8,8-17.9,9.2-21.6,3.5c-3.2-4.9-0.5-13.4,5.6-19.5c6.1-6.1,14.6-8.8,19.5-5.6 C918.1,241,916.9,250.9,908.9,258.9z"/>',
         '    <path fill="#F4531C" d="M903.2,253.2c-2.9,2.9-6.7,3.6-8.3,1.7c-1.5-1.8-0.6-5.4,2-8c2.6-2.6,6.2-3.6,8-2 C906.8,246.5,906.1,250.2,903.2,253.2z"/>',
         '  </g>',
-        '  <g id="bow" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" pointer-events="none">',
+        '  <g id="arco-bow" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" pointer-events="none">',
         '    <polyline fill="none" stroke="#ddd" stroke-linecap="round" points="88,200 88,250 88,300"/>',
         '    <path fill="none" stroke="#88ce02" stroke-width="3" stroke-linecap="round"',
         '          d="M88,300 c0-10.1,12-25.1,12-50s-12-39.9-12-50"/>',
         '  </g>',
-        '  <g class="arrow-angle"><use x="100" y="250" xlink:href="#arrow"/></g>',
-        '  <clipPath id="mask">',
+        '  <g class="arrow-angle"><use x="100" y="250" xlink:href="#arco-arrow"/></g>',
+        '  <clipPath id="arco-mask">',
         '    <polygon opacity=".5"',
         '             points="0,0 1500,0 1500,200 970,290 950,240 925,220 875,280 890,295 920,310 0,350"',
         '             pointer-events="none"/>',
         '  </clipPath>',
-        '  <g class="arrows" clip-path="url(#mask)" pointer-events="none"></g>',
+        '  <g class="arrows" clip-path="url(#arco-mask)" pointer-events="none"></g>',
         '  <g class="missyou" fill="#aaa" opacity="0" transform="translate(-50, 50)">',
         '    <path d="M358 194L363 118 386 120 400 153 416 121 440 119 446 203 419 212 416 163 401 180 380 160 381 204"/>',
         '    <path d="M450 120L458 200 475 192 474 121"/>',
@@ -246,7 +246,7 @@
             if (distance > 5) SomArco.tensao(distance);
 
             var scale = Math.min(Math.max(distance / 30, 1), 2);
-            TweenMax.to('#bow', 0.3, {
+            TweenMax.to('#arco-bow', 0.3, {
                 scaleX: scale,
                 rotation: bowAngle + 'rad',
                 transformOrigin: 'right center'
@@ -256,13 +256,13 @@
                 svgOrigin: '100 250'
             });
             TweenMax.to('.arrow-angle use', 0.3, { x: -distance });
-            TweenMax.to('#bow polyline', 0.3, {
+            TweenMax.to('#arco-bow polyline', 0.3, {
                 attr: { points: '88,200 ' + Math.min(pivot.x - (1 / scale) * distance, 88) + ',250 88,300' }
             });
             var radius   = distance * 9;
             var offset   = { x: Math.cos(bowAngle) * radius, y: Math.sin(bowAngle) * radius };
             var arcWidth = offset.x * 3;
-            TweenMax.to('#arc', 0.3, {
+            TweenMax.to('#arco-arc', 0.3, {
                 attr: {
                     d: 'M100,250c' + offset.x + ',' + offset.y + ',' +
                        (arcWidth - offset.x) + ',' + (offset.y + 50) + ',' + arcWidth + ',50'
@@ -277,19 +277,19 @@
             _onMouseMove = null;
             _onMouseUp   = null;
             SomArco.disparo();
-            TweenMax.to('#bow', 0.4, {
+            TweenMax.to('#arco-bow', 0.4, {
                 scaleX: 1,
                 transformOrigin: 'right center',
                 ease: Elastic.easeOut
             });
-            TweenMax.to('#bow polyline', 0.4, {
+            TweenMax.to('#arco-bow polyline', 0.4, {
                 attr: { points: '88,200 88,250 88,300' },
                 ease: Elastic.easeOut
             });
             var newArrow = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            newArrow.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#arrow');
+            newArrow.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#arco-arrow');
             arrows.appendChild(newArrow);
-            var path = MorphSVGPlugin.pathDataToBezier('#arc');
+            var path = MorphSVGPlugin.pathDataToBezier('#arco-arc');
             TweenMax.to([newArrow], 0.5, {
                 force3D: true,
                 bezier: { type: 'cubic', values: path, autoRotate: ['x', 'y', 'rotation'] },
@@ -298,7 +298,7 @@
                 onComplete: onMiss,
                 ease: Linear.easeNone
             });
-            TweenMax.to('#arc', 0.3, { opacity: 0 });
+            TweenMax.to('#arco-arc', 0.3, { opacity: 0 });
             TweenMax.set('.arrow-angle use', { opacity: 0 });
         }
 
@@ -314,7 +314,7 @@
             };
             var intersection = getIntersection(arrowSegment, lineSegment);
             if (intersection && intersection.segment1 && intersection.segment2) {
-                tween.pause();
+                tween.kill();
                 var dx   = intersection.x - target.x;
                 var dy   = intersection.y - target.y;
                 var dist = Math.sqrt(dx * dx + dy * dy);
@@ -390,14 +390,16 @@
         btnFechar.setAttribute('aria-label', 'Fechar');
         btnFechar.style.cssText = [
             'position:absolute', 'top:16px', 'right:16px',
-            'width:48px', 'height:48px',
+            'width:64px', 'height:64px',
             'background:rgba(255,255,255,0.15)',
             'border:none', 'border-radius:50%',
             'color:#fff', 'font-size:20px',
             'cursor:pointer', 'z-index:10',
             'display:flex', 'align-items:center', 'justify-content:center'
         ].join(';');
-        btnFechar.onclick = fechar;
+        btnFechar.onclick = function () {
+            window.fecharJoguinhos ? window.fecharJoguinhos() : fechar();
+        };
         overlay.appendChild(btnFechar);
 
         document.body.appendChild(overlay);
@@ -421,14 +423,25 @@
         overlay.addEventListener('touchmove',  _onTouchMove,  { passive: false });
         overlay.addEventListener('touchend',   _onTouchEnd,   { passive: false });
 
-        _onKey = function (e) { if (e.key === 'Escape') fechar(); };
+        _onKey = function (e) {
+            if (e.key === 'Escape') {
+                window.fecharJoguinhos ? window.fecharJoguinhos() : fechar();
+            }
+        };
         document.addEventListener('keydown', _onKey);
 
         initJogo();
     }
 
     function fechar() {
-        TweenMax.killAll(true);
+        TweenMax.killTweensOf('#arco-bow');
+        TweenMax.killTweensOf('#arco-arc');
+        TweenMax.killTweensOf('.arrow-angle');
+        TweenMax.killTweensOf('.arrow-angle use');
+        TweenMax.killTweensOf('#arco-bow polyline');
+        TweenMax.killTweensOf('.hit');
+        TweenMax.killTweensOf('.loveyou');
+        TweenMax.killTweensOf('.missyou');
         if (_onKey)       { document.removeEventListener('keydown',  _onKey);       _onKey = null; }
         if (_onMouseDown) { window.removeEventListener('mousedown', _onMouseDown); _onMouseDown = null; }
         if (_onMouseMove) { window.removeEventListener('mousemove', _onMouseMove); _onMouseMove = null; }
