@@ -131,6 +131,8 @@
     var overlay      = null;
     var _onKey       = null;
     var _onMouseDown = null;
+    var _onMouseMove = null;
+    var _onMouseUp   = null;
     var _onTouchStart = null;
     var _onTouchMove  = null;
     var _onTouchEnd   = null;
@@ -224,8 +226,10 @@
         function draw(e) {
             randomAngle = Math.random() * Math.PI * 0.03 - 0.015;
             TweenMax.to('.arrow-angle use', 0.3, { opacity: 1 });
-            window.addEventListener('mousemove', aim);
-            window.addEventListener('mouseup', loose);
+            _onMouseMove = aim;
+            _onMouseUp   = loose;
+            window.addEventListener('mousemove', _onMouseMove);
+            window.addEventListener('mouseup',   _onMouseUp);
             aim(e);
         }
 
@@ -268,8 +272,10 @@
         }
 
         function loose() {
-            window.removeEventListener('mousemove', aim);
-            window.removeEventListener('mouseup', loose);
+            window.removeEventListener('mousemove', _onMouseMove);
+            window.removeEventListener('mouseup',   _onMouseUp);
+            _onMouseMove = null;
+            _onMouseUp   = null;
             SomArco.disparo();
             TweenMax.to('#bow', 0.4, {
                 scaleX: 1,
@@ -380,7 +386,7 @@
         overlay.innerHTML = SVG_HTML;
 
         var btnFechar = document.createElement('button');
-        btnFechar.textContent = '✕';
+        btnFechar.innerHTML = '<span class="material-icons" style="font-size:20px;line-height:1;">close</span>';
         btnFechar.setAttribute('aria-label', 'Fechar');
         btnFechar.style.cssText = [
             'position:absolute', 'top:16px', 'right:16px',
@@ -422,8 +428,11 @@
     }
 
     function fechar() {
+        TweenMax.killAll(true);
         if (_onKey)       { document.removeEventListener('keydown',  _onKey);       _onKey = null; }
         if (_onMouseDown) { window.removeEventListener('mousedown', _onMouseDown); _onMouseDown = null; }
+        if (_onMouseMove) { window.removeEventListener('mousemove', _onMouseMove); _onMouseMove = null; }
+        if (_onMouseUp)   { window.removeEventListener('mouseup',   _onMouseUp);   _onMouseUp = null; }
 
         if (overlay) {
             if (_onTouchStart) overlay.removeEventListener('touchstart', _onTouchStart);
