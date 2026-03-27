@@ -95,6 +95,73 @@
     }
     #win-screen.show #win-sub { opacity: 1; }
 
+    /* ---- Vidas ---- */
+    #lives-display {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 5px;
+    }
+    .heart {
+      font-size: clamp(16px, 3.5vw, 26px);
+      color: #ff4757;
+      text-shadow: 0 0 10px rgba(255,71,87,0.7);
+      transition: color 0.3s, text-shadow 0.3s, transform 0.2s;
+      display: inline-block;
+    }
+    .heart.lost {
+      color: rgba(255,71,87,0.18);
+      text-shadow: none;
+    }
+
+    /* ---- Game Over overlay ---- */
+    #gameover-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(0,0,0,0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: background 0.4s, opacity 0.3s;
+    }
+    #gameover-screen.show {
+      opacity: 1;
+      background: rgba(0,0,0,0.65);
+      pointer-events: all;
+    }
+    #gameover-title {
+      font-family: 'Russo One', Impact, sans-serif;
+      font-size: clamp(52px, 13vw, 120px);
+      color: #ff4757;
+      text-shadow: 0 0 40px rgba(255,71,87,0.8), 0 4px 12px rgba(0,0,0,0.9);
+      transform: scale(0);
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    #gameover-screen.show #gameover-title { transform: scale(1); }
+    #restart-btn {
+      margin-top: 28px;
+      background: linear-gradient(180deg, #ff6b7a 0%, #ff4757 100%);
+      color: white;
+      border: none;
+      padding: 16px 48px;
+      border-radius: 50px;
+      font-family: 'Russo One', Impact, sans-serif;
+      font-size: clamp(18px, 4vw, 30px);
+      cursor: pointer;
+      box-shadow: 0 4px 0 #c0392b, 0 8px 20px rgba(255,71,87,0.5);
+      opacity: 0;
+      transition: opacity 0.3s 0.5s;
+      min-width: 180px;
+      min-height: 64px;
+      letter-spacing: 0.05em;
+    }
+    #gameover-screen.show #restart-btn { opacity: 1; }
+    #restart-btn:active { transform: translateY(2px); }
+
     /* ---- Hint ---- */
     #hint {
       position: fixed;
@@ -121,6 +188,11 @@
         <span id="hits-count">0</span><span style="opacity:.3"> / </span><span id="hits-goal">5</span>
       </div>
       <div id="level-display">Nível <span id="level-num">1</span></div>
+      <div id="lives-display">
+        <span class="heart" id="heart-1">♥</span>
+        <span class="heart" id="heart-2">♥</span>
+        <span class="heart" id="heart-3">♥</span>
+      </div>
     </div>
   </div>
 
@@ -128,6 +200,12 @@
   <div id="win-screen">
     <div id="win-title">PARABÉNS!</div>
     <div id="win-sub">Próximo nível...</div>
+  </div>
+
+  <!-- Tela de game over -->
+  <div id="gameover-screen">
+    <div id="gameover-title">DE NOVO?</div>
+    <button id="restart-btn">JOGAR</button>
   </div>
 
   <!-- Dica inicial -->
@@ -339,7 +417,20 @@
           o.start(t); o.stop(t + 0.35);
         });
       }
-      return { tensao:tensao, disparo:disparo, acerto:acerto, bullseye:bullseye, erro:erro, fanfarra:fanfarra };
+      function gameOver() {
+        var ac = ctx(); if (!ac) return;
+        [523, 440, 349, 261].forEach(function(hz, i) {
+          var o = ac.createOscillator(), g = ac.createGain();
+          o.connect(g); g.connect(ac.destination); o.type = 'sine';
+          var t = ac.currentTime + i * 0.18;
+          o.frequency.setValueAtTime(hz, t);
+          g.gain.setValueAtTime(0, t);
+          g.gain.linearRampToValueAtTime(0.22, t + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+          o.start(t); o.stop(t + 0.45);
+        });
+      }
+      return { tensao:tensao, disparo:disparo, acerto:acerto, bullseye:bullseye, erro:erro, fanfarra:fanfarra, gameOver:gameOver };
     })();
 
     // =========================================================
@@ -362,6 +453,8 @@
 
     // Pontuação e níveis
     var hits       = 0;
+    var misses     = 0;
+    var MAX_MISSES = 3;
     var level      = 1;
     var HITS_TO_WIN = 5;
     var levelAnimating = false;
@@ -514,9 +607,43 @@
       }
     }
 
+    function updateLives() {
+      for (var i = 1; i <= MAX_MISSES; i++) {
+        var h = document.getElementById('heart-' + i);
+        if (h) h.className = 'heart' + (i > MAX_MISSES - misses ? ' lost' : '');
+      }
+    }
+
     function onMiss() {
+      misses++;
       SomArco.erro();
       showMessage(".missyou");
+      updateLives();
+      if (misses >= MAX_MISSES) {
+        setTimeout(onGameOver, 900);
+      }
+    }
+
+    function onGameOver() {
+      levelAnimating = true;
+      SomArco.gameOver();
+      if (targetAnim) targetAnim.kill();
+      document.getElementById('gameover-screen').classList.add('show');
+    }
+
+    function restartLevel() {
+      document.getElementById('gameover-screen').classList.remove('show');
+      misses = 0;
+      hits   = 0;
+      updateLives();
+      document.getElementById('hits-count').textContent = '0';
+      arrowsEl.innerHTML = '';
+      targetProxy.y = 0;
+      updateTargetTransform();
+      setTimeout(function () {
+        levelAnimating = false;
+        startTargetAnim();
+      }, 350);
     }
 
     function onHit() {
@@ -554,7 +681,9 @@
       setTimeout(function () {
         winScreen.classList.remove('show');
         setTimeout(function () {
-          hits = 0;
+          hits   = 0;
+          misses = 0;
+          updateLives();
           document.getElementById('hits-count').textContent = '0';
           document.getElementById('level-num').textContent  = level;
           // Limpa flechas acumuladas
@@ -671,6 +800,7 @@
     // =========================================================
     // INICIAR
     // =========================================================
+    document.getElementById('restart-btn').addEventListener('click', restartLevel);
     startTargetAnim();
   </script>
 </body>
