@@ -144,7 +144,7 @@
     var SVG_HTML = [
         '<svg id="arco-game" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
         '     viewBox="0 0 1000 400" overflow="visible"',
-        '     style="width:100%;height:100%;position:absolute;top:0;left:0;">',
+        '     style="width:100%;height:100%;position:absolute;top:0;left:0;pointer-events:none;">',
         '  <linearGradient id="arco-ArcGradient">',
         '    <stop offset="0" stop-color="#fff" stop-opacity=".2"/>',
         '    <stop offset="50%" stop-color="#fff" stop-opacity="0"/>',
@@ -218,10 +218,15 @@
         var lineSegment = { x1: 875, y1: 280, x2: 925, y2: 220 };
         var pivot       = { x: 100, y: 250 };
 
-        aim({ clientX: 320, clientY: 300 });
-
+        // Registrar mousedown ANTES de qualquer aim() para garantir interatividade
+        // mesmo que getScreenCTM() falhe na primeira chamada (layout ainda pendente)
         _onMouseDown = draw;
         window.addEventListener('mousedown', _onMouseDown);
+
+        // Aguardar 1 frame para o browser layoutar o SVG antes de chamar getScreenCTM()
+        requestAnimationFrame(function () {
+            aim({ clientX: 320, clientY: 300 });
+        });
 
         function draw(e) {
             randomAngle = Math.random() * Math.PI * 0.03 - 0.015;
@@ -353,7 +358,9 @@
         function getMouseSVG(e) {
             cursor.x = e.clientX;
             cursor.y = e.clientY;
-            return cursor.matrixTransform(svg.getScreenCTM().inverse());
+            var ctm = svg.getScreenCTM();
+            if (!ctm) return cursor;
+            return cursor.matrixTransform(ctm.inverse());
         }
 
         function getIntersection(seg1, seg2) {
