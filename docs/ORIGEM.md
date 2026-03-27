@@ -96,6 +96,14 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 - **Controles:** D-pad + botao Fire (joystick Atari padrao; 1 botao para todos os 3 consoles)
 - **Escalabilidade:** Para adicionar jogos, colocar .a26/.a52/.a78 na pasta correta e inserir entrada no array `roms` do console em `jogos/atari.js`
 
+## MorphSVGPlugin (GSAP)
+
+- **Arquivo:** `jogos/vendor/MorphSVGPlugin.min.js`
+- **Origem:** https://s3-us-west-2.amazonaws.com/s.cdpn.io/16327/MorphSVGPlugin.min.js (CodePen CDN)
+- **Uso:** Jogo Arco e Flecha — converte path SVG em bezier para animacao da flecha
+- **Licenca:** GreenSock No-Charge License (uso nao-comercial permitido)
+- **Data de download:** 2026-03-27
+
 ## Modificacoes na Extracao
 
 1. **Penaltis desacoplado do ManutencaoScreen** — No original, o jogo reutilizava o container e metodos de `ManutencaoScreen`. Na versao standalone, o jogo recebe um container DOM qualquer via `PenaltisGame.abrir(containerEl)`.
