@@ -107,6 +107,12 @@
                 document.removeEventListener('keydown', this._penaltyKeyHandler);
                 this._penaltyKeyHandler = null;
             }
+            if (this._canvasEl && this._canvasHandlers) {
+                this._canvasEl.removeEventListener('click', this._canvasHandlers.click);
+                this._canvasEl.removeEventListener('touchstart', this._canvasHandlers.touchstart);
+                this._canvasEl.removeEventListener('mousemove', this._canvasHandlers.mousemove);
+                this._canvasHandlers = null;
+            }
         },
 
         // ---- Game Loop Principal ----
@@ -283,9 +289,8 @@
                 }
             };
 
-            canvas.addEventListener('click', handleClick);
-            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleClick(e); });
-            canvas.addEventListener('mousemove', (e) => {
+            const handleTouch = (e) => { e.preventDefault(); handleClick(e); };
+            const handleMouseMove = (e) => {
                 if (state !== 'aiming') {
                     hoverZone = -1;
                     return;
@@ -296,7 +301,13 @@
                     const row = Math.min(2, Math.max(0, Math.floor((goalB - pos.y) / zoneH)));
                     hoverZone = row * 3 + col;
                 } else { hoverZone = -1; }
-            });
+            };
+
+            canvas.addEventListener('click', handleClick);
+            canvas.addEventListener('touchstart', handleTouch);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            this._canvasEl = canvas;
+            this._canvasHandlers = { click: handleClick, touchstart: handleTouch, mousemove: handleMouseMove };
 
             const keyHandler = (e) => {
                 const keyMap = {
