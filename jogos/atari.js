@@ -1,9 +1,8 @@
 // =====================================================================
 // atari.js — Emulador Multi-Atari
 // =====================================================================
-// Suporta Atari 5200 e 7800:
+// Suporta Atari 5200:
 //   5200 → EmulatorJS core "atari800" — ROMs em assets/roms/atari/5200/*.bin
-//   7800 → EmulatorJS core "prosystem" — ROMs em assets/roms/atari/7800/*.a78
 //
 // Fluxo: Hub → Seletor de Console → Seletor de ROMs → Jogo
 //
@@ -30,18 +29,6 @@
                 { id: 'defender',  nome: 'Defender',   rom: 'assets/roms/atari/5200/Defender.bin',        icon: 'shield',                cor: '#818cf8' },
                 { id: 'frogger',   nome: 'Frogger',    rom: 'assets/roms/atari/5200/Frogger I.bin',       icon: 'cruelty_free',          cor: '#4ade80' },
                 { id: 'popeye',    nome: 'Popeye',     rom: 'assets/roms/atari/5200/Popeye.bin',          icon: 'fitness_center',        cor: '#38bdf8' }
-            ]
-        },
-        {
-            id:   '7800',
-            nome: 'Atari 7800',
-            core: 'prosystem',
-            icon: 'gamepad',
-            cor:  '#34d399',
-            roms: [
-                { id: 'asteroids', nome: 'Asteroids',   rom: 'assets/roms/atari/7800/Asteroids.A78',                          icon: 'auto_awesome',   cor: '#818cf8' },
-                { id: 'donkeykong',nome: 'Donkey Kong', rom: 'assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78',         icon: 'emoji_nature',   cor: '#f59e0b' },
-                { id: 'f18',       nome: 'F-18 Hornet', rom: 'assets/roms/atari/7800/F-18 Hornet (1988) (Absolute) [b2].a78', icon: 'flight',         cor: '#38bdf8' }
             ]
         }
     ];

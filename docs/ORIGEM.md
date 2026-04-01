@@ -78,21 +78,29 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 - **ROM:** `roms/megadrive/sonic.md` — **nao incluido no repositorio**. O usuario deve fornecer o proprio arquivo ROM. Sonic the Hedgehog (Mega Drive) e propriedade da SEGA.
 - **Escalabilidade:** `window.MegadriveGame.abrir(romUrl)` aceita qualquer ROM de Mega Drive. Para adicionar novos jogos, basta adicionar o ROM em `roms/megadrive/` e criar um card no JOGOS array com o caminho correto.
 
-### Emulador Atari (5200 / 7800)
+### Donkey Kong (Atari 7800)
+
+- **Arquivo:** `jogos/donkeykong.js`
+- **Origem:** Codigo original (wrapper); emulador via CDN externo
+- **Dependencia:** [EmulatorJS](https://emulatorjs.org/) — CDN `https://cdn.emulatorjs.org/stable/data/loader.js`
+  - Core `prosystem` (RetroArch/WASM, GPL v2) — Atari 7800
+  - EmulatorJS em si: licenca GPL v3
+- **ROM:** `assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78`
+- **ROM comercial** e propriedade dos detentores originais (Nintendo / Atari). Nao incluir no repositorio sem autorizacao.
+- **Controles:** D-pad + botao Fire (joystick Atari padrao)
+
+### Emulador Atari 5200
 
 - **Arquivo:** `jogos/atari.js`
 - **Origem:** Codigo original (wrapper); emulador via CDN externo
 - **Dependencia:** [EmulatorJS](https://emulatorjs.org/) — CDN `https://cdn.emulatorjs.org/stable/data/loader.js`
   - Core `atari800` (RetroArch/WASM, GPL v2) — Atari 5200
-  - Core `prosystem` (RetroArch/WASM, GPL v2) — Atari 7800
   - EmulatorJS em si: licenca GPL v3
 - **ROMs:** fornecidas pelo usuario; ver `assets/roms/atari/README.md`
-  - Atari 5200: `assets/roms/atari/5200/*.a52`
-  - Atari 7800: `assets/roms/atari/7800/*.a78`
+  - Atari 5200: `assets/roms/atari/5200/*.bin`
 - **ROMs comerciais** sao propriedade dos detentores originais (Atari, Inc. / Atari SA). Nao incluir no repositorio sem autorizacao.
-- **Arquitetura:** Seletor de console → Seletor de ROMs → iframe srcdoc EmulatorJS (mesmo padrao do `megadrive.js`)
-- **Controles:** D-pad + botao Fire (joystick Atari padrao; 1 botao para todos os consoles)
-- **Escalabilidade:** Para adicionar jogos, colocar .a52/.a78 na pasta correta e inserir entrada no array `roms` do console em `jogos/atari.js`
+- **Controles:** D-pad + botao Fire (joystick Atari padrao)
+- **Escalabilidade:** Para adicionar jogos, colocar .bin na pasta correta e inserir entrada no array `roms` em `jogos/atari.js`
 
 ## MorphSVGPlugin (GSAP)
 
