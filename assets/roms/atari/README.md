@@ -4,21 +4,6 @@ Coloque os arquivos de ROM nas subpastas correspondentes ao console.
 
 ---
 
-## Atari 2600 — `2600/*.a26`
-
-Core EmulatorJS: `stella`
-
-| Arquivo esperado        | Jogo           |
-|-------------------------|----------------|
-| `pong.a26`              | Pong           |
-| `breakout.a26`          | Breakout       |
-| `spaceinvaders.a26`     | Space Invaders |
-| `pacman.a26`            | Pac-Man        |
-| `pitfall.a26`           | Pitfall!       |
-| `kaboom.a26`            | Kaboom!        |
-
----
-
 ## Atari 5200 — `5200/*.a52`
 
 Core EmulatorJS: `atari800`
