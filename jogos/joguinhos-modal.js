@@ -245,7 +245,7 @@
         jogoAtual = jogo;
         mostrarTela('tela-jogo');
         // Jogos com overlay proprio (fullscreen) escondem a tela-jogo
-        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'atari') {
+        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'atari' || jogo.id === 'aranha' || jogo.id === 'arco') {
             document.getElementById('tela-jogo').classList.add('hidden');
         }
         jogo.abrir();

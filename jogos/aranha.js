@@ -633,7 +633,7 @@
 
         // botão fechar
         var btnFechar = document.createElement('button');
-        btnFechar.textContent = '✕';
+        btnFechar.innerHTML = '<span class="material-icons" style="font-size:20px;line-height:1;">close</span>';
         btnFechar.setAttribute('aria-label', 'Fechar');
         btnFechar.style.cssText = [
             'position:absolute', 'top:16px', 'right:16px',
@@ -644,7 +644,7 @@
             'cursor:pointer', 'z-index:10',
             'display:flex', 'align-items:center', 'justify-content:center'
         ].join(';');
-        btnFechar.onclick = fechar;
+        btnFechar.onclick = function () { window.fecharJoguinhos ? window.fecharJoguinhos() : fechar(); };
         overlay.appendChild(btnFechar);
 
         document.body.appendChild(overlay);
@@ -654,7 +654,7 @@
         criarSimulacao();
 
         // listeners
-        _onKey = function (e) { if (e.key === 'Escape') fechar(); };
+        _onKey = function (e) { if (e.key === 'Escape') { window.fecharJoguinhos ? window.fecharJoguinhos() : fechar(); } };
         document.addEventListener('keydown', _onKey);
 
         _onResize = function () {
