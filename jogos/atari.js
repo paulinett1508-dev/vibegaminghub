@@ -1,15 +1,14 @@
 // =====================================================================
 // atari.js — Emulador Multi-Atari
 // =====================================================================
-// Suporta Atari 2600, 5200 e 7800:
-//   2600 → Javatari.js (self-hosted) — ROMs em assets/roms/atari/2600/*.a26
+// Suporta Atari 5200 e 7800:
 //   5200 → EmulatorJS core "atari800" — ROMs em assets/roms/atari/5200/*.bin
 //   7800 → EmulatorJS core "prosystem" — ROMs em assets/roms/atari/7800/*.a78
 //
 // Fluxo: Hub → Seletor de Console → Seletor de ROMs → Jogo
 //
 // Para adicionar ROMs:
-//   1. Coloque o arquivo na pasta correta (ex: assets/roms/atari/2600/pong.a26)
+//   1. Coloque o arquivo na pasta correta (ex: assets/roms/atari/5200/game.bin)
 //   2. Adicione uma entrada no array de ROMs do console correspondente abaixo
 // =====================================================================
 
@@ -21,20 +20,6 @@
     // ---- Configuracao por console ----
     // ROMs em assets/roms/atari/<console>/  — nomes exatos dos arquivos
     var CONSOLES = [
-        {
-            id:   '2600',
-            nome: 'Atari 2600',
-            core: 'javatari',
-            icon: 'videogame_asset',
-            cor:  '#e94560',
-            roms: [
-                { id: 'breakout',  nome: 'Breakout',   rom: 'assets/roms/atari/2600/Breakout (USA).a26',                                          icon: 'sports_baseball',       cor: '#34d399' },
-                { id: 'indy500',   nome: 'Indy 500',   rom: 'assets/roms/atari/2600/Indy 500 (USA).a26',                                          icon: 'directions_car',        cor: '#f59e0b' },
-                { id: 'kaboom',    nome: 'Kaboom!',     rom: 'assets/roms/atari/2600/Kaboom! (USA).a26',                                           icon: 'local_fire_department', cor: '#f87171' },
-                { id: 'pitfall',   nome: 'Pitfall!',   rom: 'assets/roms/atari/2600/Pitfall! - Pitfall Harry\'s Jungle Adventure (USA).a26',      icon: 'forest',                cor: '#4ade80' },
-                { id: 'riverraid', nome: 'River Raid', rom: 'assets/roms/atari/2600/River Raid II (USA).a26',                                     icon: 'water',                 cor: '#38bdf8' }
-            ]
-        },
         {
             id:   '5200',
             nome: 'Atari 5200',
@@ -261,60 +246,7 @@
             window.location.href
         ).href;
 
-        if (core === 'javatari') {
-            _abrirJogoJavatari(jogo, absRom);
-        } else {
-            _abrirJogoEJS(jogo, core, absRom);
-        }
-    }
-
-    // ---- Atari 2600: Javatari.js (self-hosted) ----
-    // ROMs são same-origin → XHR direto funciona sem restrições COEP.
-    // data: URLs são opaque origin e ficam bloqueadas pelo COEP: require-corp.
-    function _abrirJogoJavatari(jogo, absRom) {
-        _iniciarIframeJavatari(absRom);
-    }
-
-    function _iniciarIframeJavatari(cartridgeUrl) {
-        var javatariSrc = new URL('/assets/libs/javatari/javatari.js', window.location.href).href;
-
-        var iframe = document.createElement('iframe');
-        Object.assign(iframe.style, {
-            position: 'absolute', inset: '0',
-            width: '100%', height: '100%',
-            border: 'none',
-        });
-        iframe.setAttribute('allowfullscreen', '');
-        iframe.setAttribute('allow', 'autoplay; gamepad *');
-
-        iframe.srcdoc = [
-            '<!DOCTYPE html><html><head>',
-            '<meta charset="utf-8">',
-            '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">',
-            '<style>',
-            '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#000;width:100%;height:100vh;overflow:hidden}',
-            '#javatari-screen{width:100%!important;height:100vh!important}',
-            '</style></head><body>',
-            '<script>',
-            'Javatari={',
-            '  CARTRIDGE_URL:' + JSON.stringify(cartridgeUrl) + ',',
-            '  AUTO_START:true,',
-            '  SCREEN_FULLSCREEN_MODE:0,',
-            '  ALLOW_URL_PARAMETERS:false,',
-            '  CARTRIDGE_SHOW_RECENT:false,',
-            '  CARTRIDGE_CHANGE_DISABLED:true',
-            '};',
-            '<\/script>',
-            '<div id="javatari-screen"></div>',
-            '<script src="' + javatariSrc + '"><\/script>',
-            '</body></html>',
-        ].join('');
-
-        _overlay.appendChild(iframe);
-        _overlay.appendChild(_criarBotaoVoltar(function () {
-            _renderizarSeletorROMs(_consoleSel);
-        }));
+        _abrirJogoEJS(jogo, core, absRom);
     }
 
     // ---- Atari 5200 / 7800: EmulatorJS ----
