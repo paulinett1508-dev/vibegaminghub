@@ -433,10 +433,12 @@
             this.segs.splice(CONF.INITIAL_SEGS);
 
             this.faseIdx++;
-            this.score      += CONF.FASE_BONUS;
-            this.spawnTimer  = this._getFase().spawnInterval - 80;
+            this.score        += CONF.FASE_BONUS;
+            this.missedApples  = 0;
+            this.spawnTimer    = this._getFase().spawnInterval - 80;
 
             this._atualizarScoreDOM();
+            this._atualizarMissDOM();
             this._mostrarMensagem(`Fase ${this.faseIdx + 1}!`, '#fde047');
 
             const faseEl = document.getElementById('escorpiao-fase');
