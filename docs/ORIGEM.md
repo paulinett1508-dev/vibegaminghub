@@ -89,19 +89,6 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 - **ROM comercial** e propriedade dos detentores originais (Nintendo / Atari). Nao incluir no repositorio sem autorizacao.
 - **Controles:** D-pad + botao Fire (joystick Atari padrao)
 
-### Emulador Atari 5200
-
-- **Arquivo:** `jogos/atari.js`
-- **Origem:** Codigo original (wrapper); emulador via CDN externo
-- **Dependencia:** [EmulatorJS](https://emulatorjs.org/) — CDN `https://cdn.emulatorjs.org/stable/data/loader.js`
-  - Core `atari800` (RetroArch/WASM, GPL v2) — Atari 5200
-  - EmulatorJS em si: licenca GPL v3
-- **ROMs:** fornecidas pelo usuario; ver `assets/roms/atari/README.md`
-  - Atari 5200: `assets/roms/atari/5200/*.bin`
-- **ROMs comerciais** sao propriedade dos detentores originais (Atari, Inc. / Atari SA). Nao incluir no repositorio sem autorizacao.
-- **Controles:** D-pad + botao Fire (joystick Atari padrao)
-- **Escalabilidade:** Para adicionar jogos, colocar .bin na pasta correta e inserir entrada no array `roms` em `jogos/atari.js`
-
 ## MorphSVGPlugin (GSAP)
 
 - **Arquivo:** `jogos/vendor/MorphSVGPlugin.min.js`
