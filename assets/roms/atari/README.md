@@ -1,10 +1,10 @@
 # ROMs Atari
 
-Coloque os arquivos de ROM nas subpastas correspondentes ao console.
+Coloque os arquivos de ROM nas subpastas correspondentes.
 
 ---
 
-## Atari 5200 — `5200/*.a52`
+## Atari 5200 — `5200/*.bin`
 
 Core EmulatorJS: `atari800`
 
@@ -21,23 +21,14 @@ Core EmulatorJS: `atari800`
 
 ## Atari 7800 — `7800/*.a78`
 
-Core EmulatorJS: `prosystem`
-
-| Arquivo esperado        | Jogo            |
-|-------------------------|-----------------|
-| `pacman.a78`            | Pac-Man         |
-| `centipede.a78`         | Centipede       |
-| `digdug.a78`            | Dig Dug         |
-| `foodfight.a78`         | Food Fight      |
-| `poleposition.a78`      | Pole Position   |
-| `asteroids.a78`         | Asteroids       |
+Donkey Kong agora e jogo standalone no hub (`jogos/donkeykong.js`).
 
 ---
 
 ## Como adicionar novos jogos
 
-1. Coloque o arquivo `.a26` / `.a52` / `.a78` na pasta correta
-2. Adicione uma entrada no array `roms` do console correspondente em `jogos/atari.js`
+1. Coloque o arquivo `.bin` na pasta `5200/`
+2. Adicione uma entrada no array `roms` em `jogos/atari.js`
 
 ## Licenca
 

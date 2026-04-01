@@ -104,6 +104,14 @@
             fechar: function () { if (window.MegadriveGame) window.MegadriveGame.fechar(); }
         },
         {
+            id: 'donkeykong',
+            nome: 'Donkey Kong',
+            icon: 'emoji_nature',
+            cor: 'linear-gradient(135deg,#92400e,#f59e0b)',
+            abrir: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.abrir(); },
+            fechar: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.fechar(); }
+        },
+        {
             id: 'atari',
             nome: 'Atari',
             icon: 'videogame_asset',
@@ -245,7 +253,7 @@
         jogoAtual = jogo;
         mostrarTela('tela-jogo');
         // Jogos com overlay proprio (fullscreen) escondem a tela-jogo
-        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'atari' || jogo.id === 'aranha' || jogo.id === 'arco') {
+        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'atari' || jogo.id === 'aranha' || jogo.id === 'arco' || jogo.id === 'donkeykong') {
             document.getElementById('tela-jogo').classList.add('hidden');
         }
         jogo.abrir();
