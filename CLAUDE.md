@@ -470,3 +470,23 @@ refactor(escorpiao): cachear grade em offscreen canvas
 - Dino runner (estilo Chrome offline)
 - Aranha (IK do reptil + teia)
 - Centopeia (chain following + legs)
+
+## Uso de Subagents
+
+- Use subagents para pesquisa de mecânicas de jogo, análise de performance Canvas e levantamento de assets em paralelo
+- Offload desenvolvimento de jogos independentes para subagents — cada jogo tem escopo isolado
+- Para múltiplos jogos simultâneos: um subagent por jogo para execução paralela
+- Referenciar: `.agnostic-core/skills/performance/performance-audit.md` para jogos com renderização pesada
+
+## Verificação antes de Concluir
+
+- Nunca marque tarefa como concluída sem testar o jogo em touch (mobile) e mouse (desktop)
+- Checagem: sem erros no console, animações suaves (60fps), feedback visual claro para crianças
+- Pergunta padrão: *"Uma criança de 3 anos conseguiria interagir sem instrução verbal?"*
+- Confirmar que assets têm licença documentada em `docs/ORIGEM.md`
+
+## Elegância (features não-triviais)
+
+- Para mecânicas que tocam 3+ funções do loop de jogo: pause e verifique separação de responsabilidades
+- Se a lógica do Canvas está acumulando condicionais: extrair para funções nomeadas com verbo claro
+- **Exceção:** ajustes de cor, tamanho e posição de elementos — não criar abstração para 1 uso
