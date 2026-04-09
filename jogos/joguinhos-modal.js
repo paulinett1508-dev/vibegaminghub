@@ -110,6 +110,14 @@
             cor: 'linear-gradient(135deg,#92400e,#f59e0b)',
             abrir: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.abrir(); },
             fechar: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.fechar(); }
+        },
+        {
+            id: 'snes',
+            nome: 'SNES',
+            icon: 'sports_esports',
+            cor: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
+            abrir: function () { if (window.SNESGame) window.SNESGame.abrir(); },
+            fechar: function () { if (window.SNESGame) window.SNESGame.fechar(); }
         }
     ];
 
@@ -245,7 +253,7 @@
         jogoAtual = jogo;
         mostrarTela('tela-jogo');
         // Jogos com overlay proprio (fullscreen) escondem a tela-jogo
-        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'aranha' || jogo.id === 'arco' || jogo.id === 'donkeykong') {
+        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'aranha' || jogo.id === 'arco' || jogo.id === 'donkeykong' || jogo.id === 'snes') {
             document.getElementById('tela-jogo').classList.add('hidden');
         }
         jogo.abrir();
