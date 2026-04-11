@@ -97,6 +97,14 @@ Estes trechos eram a "cola" que integrava os joguinhos ao SuperCartolaManager. N
 - **Licenca:** GreenSock No-Charge License (uso nao-comercial permitido)
 - **Data de download:** 2026-03-27
 
+### Imagem Splash (Unsplash)
+
+- **Arquivo:** `assets/img/splash-vibe2.jpg`
+- **Origem:** Unsplash (https://unsplash.com/photos/retro-gaming-setup)
+- **Licenca:** Unsplash License (uso comercial e nao-comercial permitido, sem atribuicao obrigatoria)
+- **Data de download:** 2026-04-11
+- **Uso:** Imagem hero na splash screen do VibeGaming
+
 ## Modificacoes na Extracao
 
 1. **Penaltis desacoplado do ManutencaoScreen** — No original, o jogo reutilizava o container e metodos de `ManutencaoScreen`. Na versao standalone, o jogo recebe um container DOM qualquer via `PenaltisGame.abrir(containerEl)`.

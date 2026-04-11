@@ -2,7 +2,7 @@
 // joguinhos-modal.js — Sistema de Navegacao v2.0
 // =====================================================================
 // Gerencia 3 telas: Splash → Hub → Jogo
-// Desenha personagens animados no splash (garotinho Jose + fundo)
+// Splash com fundo decorativo + hub de jogos
 // Monta grid de jogos no hub
 // =====================================================================
 
@@ -127,7 +127,6 @@
 
     let jogoAtual = null;
     let splashAnimFrame = null;
-    let joseAnimFrame = null;
     var _splashResizeHandler = null;
 
     // ---- Música da Splash ----
@@ -351,189 +350,7 @@
         frame();
     }
 
-    // ---- Desenho do Jose reutilizavel (splash + dialogo) ----
-
-    function _desenharRostoJose(ctx, W, H, t) {
-        var cx = W / 2;
-        var cy = H / 2 + W * 0.055;
-        var bounce = Math.sin(t * 0.04) * W * 0.008;
-        var scale = W / 180; // escala relativa ao canvas original de 180px
-
-        var skin = '#f5dfc5';
-        var skinDark = '#e8c9a8';
-        var hairColor = '#1a3f7a';
-        var hairLight = '#2d5fa8';
-        var hairDark = '#0f2a55';
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(Math.sin(t * 0.02) * 0.02);
-        ctx.translate(-cx, -cy);
-
-        // Orelhas
-        ctx.fillStyle = skin;
-        ctx.beginPath();
-        ctx.ellipse(cx - 52 * scale, cy + 5 * scale + bounce, 12 * scale, 16 * scale, -0.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(cx + 52 * scale, cy + 5 * scale + bounce, 12 * scale, 16 * scale, 0.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Rosto sombra
-        ctx.fillStyle = skinDark;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + 6 * scale + bounce, 52 * scale, 48 * scale, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Rosto principal
-        ctx.fillStyle = skin;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + bounce, 50 * scale, 46 * scale, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Cabelo base
-        ctx.fillStyle = hairDark;
-        ctx.beginPath();
-        ctx.arc(cx, cy - 10 * scale + bounce, 55 * scale, Math.PI, 0);
-        ctx.fill();
-
-        // Cachinhos
-        var curls = [
-            { x: 0, y: -62, r: 18 },
-            { x: -22, y: -58, r: 17 }, { x: 22, y: -58, r: 17 },
-            { x: -42, y: -45, r: 16 }, { x: 42, y: -45, r: 16 },
-            { x: -10, y: -68, r: 14 }, { x: 10, y: -68, r: 14 },
-            { x: -32, y: -55, r: 15 }, { x: 32, y: -55, r: 15 },
-            { x: -50, y: -30, r: 14 }, { x: 50, y: -30, r: 14 },
-            { x: 0, y: -72, r: 12 },
-            { x: -55, y: -15, r: 12 }, { x: 55, y: -15, r: 12 }
-        ];
-        curls.forEach(function(c, i) {
-            var wobble = Math.sin(t * 0.02 + i * 0.4) * 1.5 * scale;
-            ctx.fillStyle = hairColor;
-            ctx.beginPath();
-            ctx.arc(cx + c.x * scale + wobble, cy + c.y * scale + bounce, c.r * scale, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = hairLight;
-            ctx.beginPath();
-            ctx.arc(cx + c.x * scale + wobble - 4 * scale, cy + c.y * scale + bounce - 5 * scale, c.r * 0.3 * scale, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // Olhos
-        var blink = (t % 200 < 8) ? 0.1 : 1;
-        var eyeY = cy + bounce;
-        var eyeSpacing = 22 * scale;
-
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.ellipse(cx - eyeSpacing, eyeY, 14 * scale, 16 * scale * blink, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(cx + eyeSpacing, eyeY, 14 * scale, 16 * scale * blink, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (blink > 0.5) {
-            ctx.fillStyle = '#3d2314';
-            ctx.beginPath();
-            ctx.ellipse(cx - eyeSpacing + 2 * scale, eyeY + 2 * scale, 9 * scale, 10 * scale, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(cx + eyeSpacing + 2 * scale, eyeY + 2 * scale, 9 * scale, 10 * scale, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#1a0f0a';
-            ctx.beginPath();
-            ctx.arc(cx - eyeSpacing + 2 * scale, eyeY + 3 * scale, 5 * scale, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(cx + eyeSpacing + 2 * scale, eyeY + 3 * scale, 5 * scale, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#fff';
-            ctx.beginPath();
-            ctx.arc(cx - eyeSpacing + 5 * scale, eyeY - 2 * scale, 4 * scale, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(cx + eyeSpacing + 5 * scale, eyeY - 2 * scale, 4 * scale, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(cx - eyeSpacing - 1 * scale, eyeY + 5 * scale, 2 * scale, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(cx + eyeSpacing - 1 * scale, eyeY + 5 * scale, 2 * scale, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Sobrancelhas
-        ctx.strokeStyle = hairDark;
-        ctx.lineWidth = 2.5 * scale;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(cx - 34 * scale, cy - 18 * scale + bounce);
-        ctx.quadraticCurveTo(cx - 22 * scale, cy - 24 * scale + bounce, cx - 10 * scale, cy - 20 * scale + bounce);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx + 10 * scale, cy - 20 * scale + bounce);
-        ctx.quadraticCurveTo(cx + 22 * scale, cy - 24 * scale + bounce, cx + 34 * scale, cy - 18 * scale + bounce);
-        ctx.stroke();
-
-        // Nariz
-        ctx.fillStyle = skinDark;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + 18 * scale + bounce, 4 * scale, 3 * scale, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Bochechas
-        ctx.fillStyle = 'rgba(255, 160, 140, 0.35)';
-        ctx.beginPath();
-        ctx.ellipse(cx - 36 * scale, cy + 18 * scale + bounce, 12 * scale, 8 * scale, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(cx + 36 * scale, cy + 18 * scale + bounce, 12 * scale, 8 * scale, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Sorriso
-        ctx.fillStyle = '#c45c5c';
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + 32 * scale + bounce, 18 * scale, 12 * scale, 0, 0, Math.PI);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(cx, cy + 32 * scale + bounce, 14 * scale, 0.15, Math.PI - 0.15);
-        ctx.lineTo(cx - 13 * scale, cy + 32 * scale + bounce);
-        ctx.fill();
-
-        ctx.strokeStyle = '#803030';
-        ctx.lineWidth = 2.5 * scale;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.arc(cx, cy + 32 * scale + bounce, 16 * scale, 0.1, Math.PI - 0.1);
-        ctx.stroke();
-
-        ctx.restore();
-    }
-
-    // ---- Splash: Desenhar rosto do Jose (usa funcao reutilizavel) ----
-
-    function desenharJose() {
-        var canvas = document.getElementById('jose-canvas');
-        if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        var W = canvas.width;
-        var H = canvas.height;
-        var t = 0;
-
-        function frame() {
-            t++;
-            ctx.clearRect(0, 0, W, H);
-            _desenharRostoJose(ctx, W, H, t);
-            joseAnimFrame = requestAnimationFrame(frame);
-        }
-        frame();
-    }
-
-    // ---- Splash: Fundo estilo arcade/games ----
+    // ---- Splash: Fundo decorativo ----
 
     function desenharFundoSplash() {
         var canvas = document.getElementById('splash-bg-canvas');
@@ -723,7 +540,6 @@
     }
 
     function iniciarSplashAnim() {
-        desenharJose();
         desenharFundoSplash();
         // Musica inicia apenas apos gesto do usuario (ver tentarIniciarMusica)
     }
@@ -732,10 +548,6 @@
         if (splashAnimFrame) {
             cancelAnimationFrame(splashAnimFrame);
             splashAnimFrame = null;
-        }
-        if (joseAnimFrame) {
-            cancelAnimationFrame(joseAnimFrame);
-            joseAnimFrame = null;
         }
         if (_splashResizeHandler) {
             window.removeEventListener('resize', _splashResizeHandler);
@@ -800,12 +612,17 @@
             'width:100%',
         ].join(';');
 
-        // Canvas do Jose (mini)
-        var joseCV = document.createElement('canvas');
-        joseCV.width = 120;
-        joseCV.height = 120;
-        joseCV.style.cssText = 'display:block;width:120px;height:120px;margin:0 auto;';
-        card.appendChild(joseCV);
+        // Icone do dialogo
+        var iconWrap = document.createElement('div');
+        iconWrap.style.cssText = [
+            'width:80px', 'height:80px', 'margin:0 auto',
+            'background:var(--bg-surface,#2a2a2a)',
+            'border:2px solid #f0ead8', 'border-radius:4px',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'box-shadow:3px 3px 0 0 #f0ead8',
+        ].join(';');
+        iconWrap.innerHTML = '<span class="material-icons" style="font-size:40px;color:#FFD700;">sports_esports</span>';
+        card.appendChild(iconWrap);
 
         // Balao de fala
         var balao = document.createElement('div');
@@ -860,8 +677,8 @@
             'transition:all 0.15s cubic-bezier(0.4,0,0.2,1)',
         ].join(';');
         btnFicar.innerHTML = '<span class="material-icons" style="font-size:28px;">' +
-            (opcoes.btnFicarIcon || 'favorite') + '</span>' +
-            (opcoes.btnFicarTexto || 'Ficar!');
+            (opcoes.btnFicarIcon || 'arrow_back') + '</span>' +
+            (opcoes.btnFicarTexto || 'Voltar');
         btnFicar.addEventListener('click', function () {
             _fecharConfirmacao();
             if (opcoes.onFicar) opcoes.onFicar();
@@ -902,18 +719,6 @@
         document.head.appendChild(style);
 
         document.body.appendChild(ov);
-
-        // Animar Jose no canvas mini
-        var joseCtx = joseCV.getContext('2d');
-        var jt = 0;
-        function joseFrame() {
-            if (!joseCV.isConnected) return;
-            jt++;
-            joseCtx.clearRect(0, 0, 120, 120);
-            _desenharRostoJose(joseCtx, 120, 120, jt);
-            _confirmacaoRAF = requestAnimationFrame(joseFrame);
-        }
-        joseFrame();
 
         // Animacao de entrada (fade in + scale)
         requestAnimationFrame(function () {
@@ -964,7 +769,7 @@
             history.pushState({ tela: 'jogo' }, '');
             mostrarConfirmacaoJose({
                 texto: 'Sair?',
-                btnFicarTexto: 'Jogar!',
+                btnFicarTexto: 'Continuar',
                 btnFicarIcon: 'sports_esports',
                 btnSairTexto: 'Sair',
                 btnSairIcon: 'exit_to_app',
@@ -978,9 +783,9 @@
         } else if (tela === 'hub') {
             history.pushState({ tela: 'hub' }, '');
             mostrarConfirmacaoJose({
-                texto: 'Tchau?',
-                btnFicarTexto: 'Ficar!',
-                btnFicarIcon: 'favorite',
+                texto: 'Sair?',
+                btnFicarTexto: 'Voltar',
+                btnFicarIcon: 'arrow_back',
                 btnSairTexto: 'Sair',
                 btnSairIcon: 'exit_to_app',
                 onSair: function () {
@@ -993,9 +798,9 @@
             // Splash — perguntar se quer sair do app
             history.pushState({ tela: 'splash' }, '');
             mostrarConfirmacaoJose({
-                texto: 'Tchau?',
-                btnFicarTexto: 'Ficar!',
-                btnFicarIcon: 'favorite',
+                texto: 'Sair?',
+                btnFicarTexto: 'Voltar',
+                btnFicarIcon: 'arrow_back',
                 btnSairTexto: 'Sair',
                 btnSairIcon: 'exit_to_app',
                 onSair: function () {
