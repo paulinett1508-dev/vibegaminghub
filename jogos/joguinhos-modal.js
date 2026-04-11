@@ -560,7 +560,7 @@
             { x: 0.08, y: 0.82, size: 18, shape: 'star',     color: '#fbbf24', phase: 0.0 },
             { x: 0.92, y: 0.72, size: 16, shape: 'star',     color: '#38bdf8', phase: 1.2 },
             { x: 0.18, y: 0.12, size: 14, shape: 'star',     color: '#f472b6', phase: 2.4 },
-            { x: 0.82, y: 0.18, size: 15, shape: 'star',     color: '#a855f7', phase: 0.8 },
+            { x: 0.82, y: 0.18, size: 15, shape: 'star',     color: '#FFD700', phase: 0.8 },
             // Triangulos
             { x: 0.06, y: 0.35, size: 14, shape: 'triangle', color: '#34d399', phase: 1.6 },
             { x: 0.94, y: 0.42, size: 13, shape: 'triangle', color: '#fbbf24', phase: 0.4 },
@@ -569,7 +569,7 @@
             // Circulos
             { x: 0.88, y: 0.55, size: 10, shape: 'circle',   color: '#fbbf24', phase: 1.8 },
             { x: 0.12, y: 0.58, size: 11, shape: 'circle',   color: '#22d3ee', phase: 0.6 },
-            { x: 0.55, y: 0.90, size: 9,  shape: 'circle',   color: '#a855f7', phase: 2.2 },
+            { x: 0.55, y: 0.90, size: 9,  shape: 'circle',   color: '#FFD700', phase: 2.2 },
             { x: 0.45, y: 0.06, size: 10, shape: 'circle',   color: '#34d399', phase: 1.4 },
             { x: 0.78, y: 0.06, size: 8,  shape: 'circle',   color: '#fbbf24', phase: 0.2 },
             { x: 0.22, y: 0.06, size: 8,  shape: 'circle',   color: '#38bdf8', phase: 1.9 },
@@ -621,28 +621,19 @@
             t++;
             ctx.clearRect(0, 0, W, H);
 
-            // Grid de pontos (estilo Stitch design, skip em low-end)
+            // Grid de cruzes (estilo brutalist, skip em low-end)
             if (!_low()) {
                 var gridSize = 48;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+                ctx.strokeStyle = 'rgba(240, 234, 216, 0.08)';
+                ctx.lineWidth = 1;
                 for (var gy = gridSize; gy < H; gy += gridSize) {
                     for (var gx = gridSize; gx < W; gx += gridSize) {
                         ctx.beginPath();
-                        ctx.arc(gx, gy, 1.5, 0, Math.PI * 2);
-                        ctx.fill();
+                        ctx.moveTo(gx - 3, gy); ctx.lineTo(gx + 3, gy);
+                        ctx.moveTo(gx, gy - 3); ctx.lineTo(gx, gy + 3);
+                        ctx.stroke();
                     }
                 }
-            }
-
-            // Glow central suave (atras do mascote, skip em low-end)
-            if (!_low()) {
-                var glowPulse = 0.25 + Math.sin(t * 0.02) * 0.08;
-                var centerGlow = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, Math.min(W, H) * 0.55);
-                centerGlow.addColorStop(0, 'rgba(109, 40, 217, ' + (glowPulse * 0.5) + ')');
-                centerGlow.addColorStop(0.6, 'rgba(109, 40, 217, ' + (glowPulse * 0.15) + ')');
-                centerGlow.addColorStop(1, 'rgba(109, 40, 217, 0)');
-                ctx.fillStyle = centerGlow;
-                ctx.fillRect(0, 0, W, H);
             }
 
             // Formas decorativas fixas com leve flutuacao
@@ -676,9 +667,10 @@
 
         var titulo = document.createElement('div');
         titulo.style.cssText = [
-            'font-family:"Russo One",sans-serif',
+            'font-family:"Space Grotesk",sans-serif',
+            'font-weight:700',
             'font-size:clamp(1.2rem,5vw,1.8rem)',
-            'color:#f1f5f9', 'margin-bottom:8px', 'text-align:center',
+            'color:#FFD700', 'margin-bottom:8px', 'text-align:center',
         ].join(';');
         titulo.textContent = 'Qual reptil?';
         picker.appendChild(titulo);
@@ -693,14 +685,15 @@
             btn.style.cssText = [
                 'width:min(260px,78vw)', 'min-height:80px',
                 'background:' + opt.cor,
-                'border:none', 'border-radius:22px',
-                'font-family:"Russo One",sans-serif',
+                'border:2px solid #f0ead8', 'border-radius:6px',
+                'font-family:"Space Grotesk",sans-serif',
+                'font-weight:700',
                 'font-size:clamp(1.1rem,4.5vw,1.4rem)',
                 'color:#fff', 'cursor:pointer',
                 'display:flex', 'align-items:center', 'justify-content:center', 'gap:14px',
-                'box-shadow:0 6px 24px rgba(0,0,0,0.5)',
+                'box-shadow:5px 5px 0 0 #f0ead8',
                 '-webkit-tap-highlight-color:transparent',
-                'transition:transform 0.12s',
+                'transition:all 0.15s cubic-bezier(0.4,0,0.2,1)',
             ].join(';');
             btn.innerHTML = '<span class="material-icons" style="font-size:30px;">' + opt.icon + '</span>' + opt.nome;
             btn.addEventListener('click', function () {
@@ -713,9 +706,11 @@
         var btnVoltar = document.createElement('button');
         btnVoltar.style.cssText = [
             'margin-top:8px', 'background:transparent',
-            'border:1px solid #334155', 'color:#64748b',
-            'border-radius:12px', 'padding:12px 28px',
-            'font-family:Inter,sans-serif', 'font-size:0.9rem', 'cursor:pointer',
+            'border:2px solid #f0ead8', 'color:#b8b0a0',
+            'border-radius:4px', 'padding:12px 28px',
+            'font-family:"Space Grotesk",sans-serif', 'font-weight:600', 'font-size:0.9rem', 'cursor:pointer',
+            'box-shadow:3px 3px 0 0 #f0ead8',
+            'transition:all 0.15s cubic-bezier(0.4,0,0.2,1)',
         ].join(';');
         btnVoltar.textContent = 'Voltar';
         btnVoltar.addEventListener('click', function () {
@@ -781,11 +776,11 @@
         ov.id = 'jose-confirm-ov';
         ov.style.cssText = [
             'position:fixed', 'inset:0', 'z-index:10000',
-            'background:rgba(15,23,42,0.92)',
+            'background:rgba(17,17,17,0.94)',
             'display:flex', 'flex-direction:column',
             'align-items:center', 'justify-content:center',
             '-webkit-tap-highlight-color:transparent',
-            'opacity:0', 'transition:opacity 0.25s ease-out',
+            'opacity:0', 'transition:opacity 0.2s cubic-bezier(0.4,0,0.2,1)',
         ].join(';');
         _confirmacaoOv = ov;
 
@@ -793,13 +788,14 @@
         var card = document.createElement('div');
         card.style.cssText = [
             'position:relative',
-            'background:#1e293b',
-            'border-radius:32px',
+            'background:#1a1a1a',
+            'border:3px solid #f0ead8',
+            'border-radius:6px',
             'padding:24px 28px 28px',
             'display:flex', 'flex-direction:column', 'align-items:center',
             'gap:12px',
-            'box-shadow:0 0 0 3px rgba(139,92,246,0.4), 0 20px 60px rgba(0,0,0,0.6)',
-            'transform:scale(0.8)', 'transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+            'box-shadow:8px 8px 0 0 #f0ead8',
+            'transform:scale(0.8)', 'transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1)',
             'max-width:min(320px, 88vw)',
             'width:100%',
         ].join(';');
@@ -815,14 +811,16 @@
         var balao = document.createElement('div');
         balao.style.cssText = [
             'position:relative',
-            'background:linear-gradient(135deg,#8b5cf6,#6d28d9)',
-            'color:#fff',
-            'font-family:"Russo One",sans-serif',
+            'background:#FFD700',
+            'color:#111',
+            'font-family:"Space Grotesk",sans-serif',
+            'font-weight:700',
             'font-size:clamp(1.4rem,6vw,2rem)',
             'padding:14px 32px',
-            'border-radius:22px',
+            'border:2px solid #f0ead8',
+            'border-radius:4px',
             'text-align:center',
-            'box-shadow:0 4px 20px rgba(139,92,246,0.4)',
+            'box-shadow:3px 3px 0 0 #f0ead8',
             'margin-top:4px',
         ].join(';');
         balao.textContent = opcoes.texto || 'Sair?';
@@ -834,7 +832,7 @@
             'width:0', 'height:0',
             'border-left:12px solid transparent',
             'border-right:12px solid transparent',
-            'border-bottom:12px solid #8b5cf6',
+            'border-bottom:12px solid #FFD700',
         ].join(';');
         balao.appendChild(seta);
         card.appendChild(balao);
@@ -850,15 +848,16 @@
         var btnFicar = document.createElement('button');
         btnFicar.style.cssText = [
             'flex:1', 'min-height:72px',
-            'background:linear-gradient(135deg,#10b981,#059669)',
-            'border:none', 'border-radius:20px',
-            'color:#fff', 'cursor:pointer',
-            'font-family:"Russo One",sans-serif',
+            'background:#34d399',
+            'border:2px solid #f0ead8', 'border-radius:4px',
+            'color:#111', 'cursor:pointer',
+            'font-family:"Space Grotesk",sans-serif',
+            'font-weight:700',
             'font-size:clamp(1rem,4vw,1.3rem)',
             'display:flex', 'align-items:center', 'justify-content:center', 'gap:8px',
-            'box-shadow:0 4px 20px rgba(16,185,129,0.4)',
+            'box-shadow:3px 3px 0 0 #f0ead8',
             '-webkit-tap-highlight-color:transparent',
-            'transition:transform 0.12s',
+            'transition:all 0.15s cubic-bezier(0.4,0,0.2,1)',
         ].join(';');
         btnFicar.innerHTML = '<span class="material-icons" style="font-size:28px;">' +
             (opcoes.btnFicarIcon || 'favorite') + '</span>' +
@@ -872,14 +871,16 @@
         var btnSair = document.createElement('button');
         btnSair.style.cssText = [
             'flex:1', 'min-height:72px',
-            'background:rgba(100,116,139,0.25)',
-            'border:2px solid #475569', 'border-radius:20px',
-            'color:#94a3b8', 'cursor:pointer',
-            'font-family:"Russo One",sans-serif',
+            'background:rgba(42,42,42,0.8)',
+            'border:2px solid #f0ead8', 'border-radius:4px',
+            'color:#b8b0a0', 'cursor:pointer',
+            'font-family:"Space Grotesk",sans-serif',
+            'font-weight:600',
             'font-size:clamp(0.9rem,3.5vw,1.1rem)',
             'display:flex', 'align-items:center', 'justify-content:center', 'gap:8px',
+            'box-shadow:3px 3px 0 0 #f0ead8',
             '-webkit-tap-highlight-color:transparent',
-            'transition:transform 0.12s',
+            'transition:all 0.15s cubic-bezier(0.4,0,0.2,1)',
         ].join(';');
         btnSair.innerHTML = '<span class="material-icons" style="font-size:24px;">' +
             (opcoes.btnSairIcon || 'exit_to_app') + '</span>' +
@@ -897,7 +898,7 @@
         // Keyframes
         var style = document.createElement('style');
         style.id = 'jose-confirm-styles';
-        style.textContent = '@keyframes jc-pulse{0%,100%{box-shadow:0 0 0 3px rgba(139,92,246,0.4),0 20px 60px rgba(0,0,0,0.6)}50%{box-shadow:0 0 0 5px rgba(139,92,246,0.6),0 20px 60px rgba(0,0,0,0.6)}}';
+        style.textContent = '';
         document.head.appendChild(style);
 
         document.body.appendChild(ov);
@@ -918,7 +919,7 @@
         requestAnimationFrame(function () {
             ov.style.opacity = '1';
             card.style.transform = 'scale(1)';
-            card.style.animation = 'jc-pulse 2s ease-in-out infinite';
+            // sem animacao pulsante — brutalist e direto
         });
 
         // Som de "pop" curto
