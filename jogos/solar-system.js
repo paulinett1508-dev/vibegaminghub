@@ -195,6 +195,15 @@
             '#solar-system-root .ss-planet .ss-planet-figure{opacity:0;transition:opacity var(--ss-duration) var(--ss-ease);}',
             '#solar-system-root .ss-planet[data-active] .ss-planet-figure{opacity:1;}',
 
+            /* Rotacao dos planetas */
+            '@keyframes ss-spin-ccw{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}',
+            '@keyframes ss-spin-cw{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
+            /* Prograde (anti-horario) para todos */
+            '#solar-system-root .ss-planet[data-active] .ss-planet-figure img{animation:ss-spin-ccw 20s linear infinite;}',
+            /* Retrogrado (horario): Venus e Urano */
+            '#solar-system-root .ss-planet[data-planet="venus"][data-active] .ss-planet-figure img{animation:ss-spin-cw 30s linear infinite;}',
+            '#solar-system-root .ss-planet[data-planet="uranus"][data-active] .ss-planet-figure img{animation:ss-spin-cw 40s linear infinite;}',
+
             /* SVG nav — original: svg roda para centrar planeta ativo */
             '#solar-system-root .ss-planet-nav{grid-column:1;grid-row:2;pointer-events:none;z-index:10;display:flex;position:absolute;left:0;right:0;bottom:0;}',
             '#solar-system-root .ss-planet-nav svg{display:block;width:auto;height:auto;min-width:100%;max-width:none;min-height:100vh;margin-bottom:-50%;position:relative;}',
