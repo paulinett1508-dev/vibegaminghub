@@ -111,22 +111,51 @@
         return wrap;
     }
 
-    function _buildNav() {
-        var nav = _el('nav', { class:'ss-planet-nav' });
-        var svg = _svgEl('svg', { viewBox:'0 20 400 400', xmlns:'http://www.w3.org/2000/svg' });
-        var path = _svgEl('path', { id:'ss-navPath', d:'M10,200 C30,-28 370,-28 390,200', fill:'none' });
-        svg.appendChild(path);
-        var textEl = _svgEl('text', {});
-        var textPath = _svgEl('textPath', { href:'#ss-navPath', startOffset:'0', 'font-size':'10' });
-        _planetKeys.forEach(function (k) {
-            var tspan = _svgEl('tspan', {});
-            tspan.textContent = PLANETS[k].title;
-            textPath.appendChild(tspan);
+    var ARC_R    = 340;  // raio do arco virtual (px)
+    var ARC_STEP = 22;   // graus entre planetas adjacentes
+
+    function _buildArcNav() {
+        var nav = _el('nav', { class:'ss-arc-nav', 'aria-label':'Planet navigation' });
+        _planetKeys.forEach(function (k, i) {
+            var item = _el('span', {
+                class: 'ss-arc-item',
+                'data-arc-index': String(i),
+                text: PLANETS[k].title
+            });
+            nav.appendChild(item);
         });
-        textEl.appendChild(textPath);
-        svg.appendChild(textEl);
-        nav.appendChild(svg);
         return nav;
+    }
+
+    function _updateArcNav(activeIndex) {
+        if (!_root) return;
+        var items = Array.from(_root.querySelectorAll('.ss-arc-item'));
+        var cx = (_root.offsetWidth || window.innerWidth) / 2;
+        var len = _planetKeys.length;
+
+        items.forEach(function (item, i) {
+            var dist = i - activeIndex;
+            if (dist >  len / 2) dist -= len;
+            if (dist < -len / 2) dist += len;
+
+            var rad   = dist * ARC_STEP * Math.PI / 180;
+            var xPos  = cx + ARC_R * Math.sin(rad);
+            var yUp   = ARC_R * (1 - Math.cos(rad));   // quanto sobe do fundo
+            var abs   = Math.abs(dist);
+            var show  = abs <= 3;
+
+            item.style.left       = xPos + 'px';
+            item.style.bottom     = yUp + 'px';
+            item.style.opacity    = show ? ['1','0.6','0.32','0.14'][abs] : '0';
+            item.style.fontSize   = ['1.75rem','1.05rem','0.72rem','0.55rem'][abs] || '0.55rem';
+            item.style.fontWeight = abs === 0 ? '700' : '400';
+            item.style.letterSpacing = abs === 0 ? '0.18em' : '0.08em';
+            item.style.textShadow = abs === 0
+                ? '0 0 22px rgba(255,255,255,1), 0 0 55px rgba(160,210,255,0.7)'
+                : 'none';
+            item.style.pointerEvents = show ? 'auto' : 'none';
+            item.style.color = abs === 0 ? '#fff' : '#bbb';
+        });
     }
 
     function _buildCloseBtn() {
@@ -155,7 +184,7 @@
             '.ss-planet>.ss-planet-title{position:relative;z-index:5;}',
             '.ss-planet>.ss-planet-details{position:relative;z-index:5;}',
             '.ss-planet>.ss-planet-details{grid-area:details;display:flex;flex-direction:row;justify-content:space-between;}',
-            '.ss-detail{font-size:5vmin;width:3em;font-weight:400;display:flex;margin-left:.4em;flex-shrink:0;align-self:start;}',
+            '.ss-detail{font-size:5vmin;width:3em;font-weight:400;display:flex;margin-left:.4em;flex-shrink:0;align-self:start;position:relative;}',
             '.ss-detail:after{content:attr(data-postfix);}',
             '.ss-detail:before{display:block;position:absolute;top:100%;margin-top:1rem;font-size:.75rem;text-transform:uppercase;opacity:.6;letter-spacing:1px;}',
             '.ss-detail[data-detail=hours]:before{content:"Hours";}',
@@ -171,14 +200,10 @@
             '.ss-planet[data-active] .ss-planet-details{opacity:1;transform:translateY(0);visibility:visible;transition-delay:0s;}',
             '.ss-planet .ss-planet-figure{opacity:0;transition:opacity var(--ss-duration) var(--ss-ease);}',
             '.ss-planet[data-active] .ss-planet-figure{opacity:1;}',
-            /* Arc nav */
-            '.ss-planet-nav{grid-column:1;grid-row:2;pointer-events:none;z-index:10;display:flex;position:absolute;left:0;right:0;bottom:0;}',
-            '.ss-planet-nav svg{display:block;width:auto;height:auto;min-width:100%;max-width:none;min-height:100vh;margin-bottom:-50%;transform-origin:center center;--ss-length:7;--ss-range:160deg;transform:rotate(calc((var(--ss-active,0)/var(--ss-length))*(-1*var(--ss-range))+(var(--ss-range)/2)));transition:transform var(--ss-duration) var(--ss-ease);}',
-            '@media(max-width:600px){.ss-planet-nav svg{margin-bottom:-55%;}}',
-            '.ss-planet-nav tspan{cursor:pointer;fill:#FFF;pointer-events:auto;opacity:0;transition:opacity var(--ss-duration) linear,font-size var(--ss-duration) var(--ss-ease),font-weight var(--ss-duration) linear;}',
-            '.ss-planet-nav tspan[x]{opacity:.6;}',
-            '.ss-planet-nav tspan:hover,.ss-planet-nav tspan:focus{opacity:1;}',
-            '.ss-planet-nav tspan.ss-nav-active{opacity:1!important;font-size:14px;font-weight:700;}',
+            /* Arc carousel nav */
+            '.ss-arc-nav{position:absolute;bottom:0;left:0;right:0;height:220px;pointer-events:none;overflow:visible;z-index:20;}',
+            '.ss-arc-item{position:absolute;pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:"DM Sans",sans-serif;text-transform:uppercase;color:#fff;transform:translate(-50%,0);transition:all var(--ss-duration) var(--ss-ease);user-select:none;}',
+            '.ss-arc-item:hover{opacity:1!important;}',
             /* Rotacao: prograde (anti-horário) e retrógrado (horário) */
             '@keyframes ss-spin-ccw{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}',
             '@keyframes ss-spin-cw{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
@@ -217,13 +242,7 @@
 
     function _selectByIndex(i) {
         _currentPlanetIndex = i;
-        var svg = _root && _root.querySelector('.ss-planet-nav svg');
-        if (svg) svg.style.setProperty('--ss-active', i);
-        // Destacar tspan ativo
-        var tspans = _root ? _root.querySelectorAll('tspan') : [];
-        tspans.forEach(function (t, idx) {
-            t.classList.toggle('ss-nav-active', idx === i);
-        });
+        _updateArcNav(i);
         _selectPlanet(_planetKeys[i]);
     }
 
@@ -242,32 +261,17 @@
             window.Splitting({ target:'#solar-system-root .ss-planet-title h1', by:'chars' });
         }
 
-        // Setup do arco SVG
-        var elNavPath = _root.querySelector('#ss-navPath');
-        var elTspans = Array.from(_root.querySelectorAll('tspan'));
-        var length = elTspans.length - 1;
-        var svg = _root.querySelector('.ss-planet-nav svg');
-        if (svg) {
-            svg.style.setProperty('--ss-length', length);
-            svg.style.setProperty('--ss-active', 0);
-        }
-        if (elNavPath && elTspans.length > 0) {
-            var navPathLength = elNavPath.getTotalLength();
-            var lastLen = elTspans[length].getComputedTextLength ? elTspans[length].getComputedTextLength() : 0;
-            navPathLength -= lastLen;
-            elTspans.forEach(function (tspan, i) {
-                tspan.setAttribute('x', (i / length) * navPathLength);
-                tspan.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    if (_scrollCooldown) return;
-                    _scrollCooldown = true;
-                    setTimeout(function () { _scrollCooldown = false; }, 850);
-                    _selectByIndex(i);
-                });
+        // Inicializar arc nav
+        _updateArcNav(0);
+        var arcItems = Array.from(_root.querySelectorAll('.ss-arc-item'));
+        arcItems.forEach(function (item, i) {
+            item.addEventListener('click', function () {
+                if (_scrollCooldown) return;
+                _scrollCooldown = true;
+                setTimeout(function () { _scrollCooldown = false; }, 850);
+                _selectByIndex(i);
             });
-        }
-        // Marcar o primeiro como ativo
-        if (elTspans[0]) elTspans[0].classList.add('ss-nav-active');
+        });
 
         var closeBtn = _root.querySelector('.ss-close-btn');
         if (closeBtn) {
@@ -370,7 +374,7 @@
             appDiv.dataset.currentPlanet = 'mercury';
 
             appDiv.appendChild(_buildCloseBtn());
-            appDiv.appendChild(_buildNav());
+            appDiv.appendChild(_buildArcNav());
             _planetKeys.forEach(function (k, i) {
                 appDiv.appendChild(_buildPlanetEl(k, i === 0));
             });
