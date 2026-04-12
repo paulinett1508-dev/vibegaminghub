@@ -17,7 +17,9 @@
     var ROM_BASE = 'roms/snes/';
 
     var _overlay = null;
-    var _onKey   = null;
+    var _onKey         = null;
+    var _iframe        = null;
+    var _resizeHandler = null;
 
     // ---- ROM Picker ----
 
@@ -183,7 +185,198 @@
         if (_overlay) { _overlay.remove(); _overlay = null; }
     }
 
-    // ---- Emulador ----
+    // ---- Emulador (PSP landscape layout) ----
+
+    // Envia input para o emulador dentro do iframe (mesmo dominio via srcdoc)
+    // Mapeamento RetroArch snes9x: B=0 Y=1 Sel=2 Sta=3 Up=4 Dn=5 Lt=6 Rt=7 A=8 X=9 L=10 R=11
+    function _sim(btnId, val) {
+        if (!_iframe) return;
+        var iw = _iframe.contentWindow;
+        if (iw && iw.EJS_emulator && iw.EJS_emulator.gameManager) {
+            iw.EJS_emulator.gameManager.simulateInput(0, btnId, val);
+        }
+    }
+
+    // Rotaciona o overlay 90 graus quando o dispositivo esta em portrait,
+    // para que o layout PSP (landscape) fique correto na tela
+    function _applyLandscape() {
+        if (!_overlay) return;
+        if (window.innerHeight > window.innerWidth) {
+            Object.assign(_overlay.style, {
+                inset: 'auto',
+                width: '100vh',
+                height: '100vw',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%) rotate(90deg)',
+            });
+        } else {
+            Object.assign(_overlay.style, {
+                inset: '0',
+                width: '100%',
+                height: '100%',
+                top: '',
+                left: '',
+                transform: '',
+            });
+        }
+    }
+
+    // Cria botao circular colorido (usado nos botoes YXAB)
+    function _makeBtn(text, color, size, onDown, onUp) {
+        var btn = document.createElement('button');
+        btn.textContent = text;
+        Object.assign(btn.style, {
+            width: size + 'px',
+            height: size + 'px',
+            borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.25)',
+            background: color,
+            color: '#fff',
+            fontSize: Math.round(size * 0.32) + 'px',
+            fontFamily: "'Russo One', sans-serif",
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            touchAction: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            flexShrink: '0',
+            boxShadow: '0 3px 8px rgba(0,0,0,0.5)',
+        });
+        btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); onDown(); btn.style.opacity = '0.7'; btn.style.transform = 'scale(0.9)'; });
+        btn.addEventListener('pointerup',     function (e) { e.preventDefault(); onUp();   btn.style.opacity = '';    btn.style.transform = ''; });
+        btn.addEventListener('pointerleave',  function ()  { onUp();   btn.style.opacity = '';    btn.style.transform = ''; });
+        btn.addEventListener('pointercancel', function ()  { onUp();   btn.style.opacity = '';    btn.style.transform = ''; });
+        return btn;
+    }
+
+    // Botao de ombro (L / R) — retangular, largura total do painel
+    function _makeShoulderBtn(text, btnId) {
+        var btn = document.createElement('button');
+        btn.textContent = text;
+        Object.assign(btn.style, {
+            width: '100%',
+            height: '32px',
+            borderRadius: '6px',
+            border: '2px solid rgba(255,255,255,0.2)',
+            background: 'rgba(50,50,70,0.9)',
+            color: '#ccc',
+            fontSize: '13px',
+            fontFamily: "'Russo One', sans-serif",
+            cursor: 'pointer',
+            touchAction: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+        });
+        btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(btnId, 1); btn.style.background = 'rgba(100,100,150,0.9)'; });
+        btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.9)'; });
+        btn.addEventListener('pointerleave',  function ()  { _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.9)'; });
+        btn.addEventListener('pointercancel', function ()  { _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.9)'; });
+        return btn;
+    }
+
+    // Botao pequeno em pilula (SELECT / START)
+    function _makeSmallBtn(text, btnId) {
+        var btn = document.createElement('button');
+        btn.textContent = text;
+        Object.assign(btn.style, {
+            width: '64px',
+            height: '22px',
+            borderRadius: '11px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(50,50,70,0.85)',
+            color: '#aaa',
+            fontSize: '9px',
+            fontFamily: "'Russo One', sans-serif",
+            letterSpacing: '1px',
+            cursor: 'pointer',
+            touchAction: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+        });
+        btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(btnId, 1); btn.style.background = 'rgba(100,100,150,0.85)'; });
+        btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.85)'; });
+        btn.addEventListener('pointerleave',  function ()  { _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.85)'; });
+        btn.addEventListener('pointercancel', function ()  { _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.85)'; });
+        return btn;
+    }
+
+    // D-pad em grade 3x3 (Up/Down/Left/Right nas posicoes de cruz)
+    function _makeDpad() {
+        var wrap = document.createElement('div');
+        Object.assign(wrap.style, {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 36px)',
+            gridTemplateRows: 'repeat(3, 36px)',
+            gap: '2px',
+        });
+        var dirs = [
+            { row: 1, col: 2, text: '\u25b2', id: 4 },   // Up
+            { row: 2, col: 1, text: '\u25c4', id: 6 },   // Left
+            { row: 2, col: 3, text: '\u25ba', id: 7 },   // Right
+            { row: 3, col: 2, text: '\u25bc', id: 5 },   // Down
+        ];
+        dirs.forEach(function (d) {
+            var btn = document.createElement('button');
+            btn.textContent = d.text;
+            Object.assign(btn.style, {
+                gridRow: String(d.row),
+                gridColumn: String(d.col),
+                background: 'rgba(60,60,80,0.9)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '4px',
+                color: '#bcd',
+                fontSize: '14px',
+                cursor: 'pointer',
+                touchAction: 'none',
+                WebkitTapHighlightColor: 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+            });
+            var id = d.id;
+            btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(id, 1); btn.style.background = 'rgba(100,100,140,0.9)'; });
+            btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
+            btn.addEventListener('pointerleave',  function ()  { _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
+            btn.addEventListener('pointercancel', function ()  { _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
+            wrap.appendChild(btn);
+        });
+        // Centro inativo do d-pad
+        var center = document.createElement('div');
+        Object.assign(center.style, { gridRow: '2', gridColumn: '2', background: 'rgba(40,40,60,0.9)', borderRadius: '4px' });
+        wrap.appendChild(center);
+        return wrap;
+    }
+
+    // Diamante YXAB em posicionamento absoluto dentro de container 110x110
+    function _makeDiamond() {
+        var wrap = document.createElement('div');
+        Object.assign(wrap.style, { position: 'relative', width: '110px', height: '110px' });
+        var defs = [
+            { text: 'X', id: 9, color: 'linear-gradient(145deg,#eab308,#a16207)', pos: { top: '0',    left: '50%',  transform: 'translateX(-50%)' } },
+            { text: 'Y', id: 1, color: 'linear-gradient(145deg,#10b981,#047857)', pos: { top: '50%',  left: '0',    transform: 'translateY(-50%)' } },
+            { text: 'A', id: 8, color: 'linear-gradient(145deg,#ef4444,#b91c1c)', pos: { top: '50%',  right: '0',   transform: 'translateY(-50%)' } },
+            { text: 'B', id: 0, color: 'linear-gradient(145deg,#3b82f6,#1d4ed8)', pos: { bottom: '0', left: '50%',  transform: 'translateX(-50%)' } },
+        ];
+        defs.forEach(function (def) {
+            var btn = _makeBtn(def.text, def.color, 42,
+                function () { _sim(def.id, 1); },
+                function () { _sim(def.id, 0); }
+            );
+            btn.style.position = 'absolute';
+            Object.assign(btn.style, def.pos);
+            wrap.appendChild(btn);
+        });
+        return wrap;
+    }
 
     function _launchEmulator(romUrl) {
         var absRom = new URL(romUrl, window.location.href).href;
@@ -191,22 +384,58 @@
         _overlay = document.createElement('div');
         _overlay.id = 'snes-overlay';
         Object.assign(_overlay.style, {
-            position: 'fixed', inset: '0',
-            background: '#0f172a', zIndex: '9000',
+            position: 'fixed',
+            background: '#111',
+            zIndex: '9000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
             WebkitTapHighlightColor: 'transparent',
         });
 
-        var iframe = document.createElement('iframe');
-        Object.assign(iframe.style, {
-            position: 'absolute', inset: '0',
-            width: '100%', height: '100%',
-            border: 'none',
+        // Grade PSP: [painel esquerdo] [tela central] [painel direito]
+        var psp = document.createElement('div');
+        Object.assign(psp.style, {
+            display: 'grid',
+            gridTemplateColumns: '130px 1fr 130px',
+            width: '100%',
+            height: '100%',
+            alignItems: 'center',
         });
-        iframe.setAttribute('allowfullscreen', '');
-        iframe.setAttribute('allow', 'autoplay; gamepad *');
+
+        // --- Painel esquerdo: L + D-pad + SELECT ---
+        var leftPanel = document.createElement('div');
+        Object.assign(leftPanel.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: '100%',
+            padding: '12px 8px',
+        });
+        leftPanel.appendChild(_makeShoulderBtn('L', 10));
+        leftPanel.appendChild(_makeDpad());
+        leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
+
+        // --- Painel central: iframe + botao fechar ---
+        var centerPanel = document.createElement('div');
+        Object.assign(centerPanel.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            position: 'relative',
+        });
+
+        _iframe = document.createElement('iframe');
+        Object.assign(_iframe.style, { width: '100%', height: '100%', border: 'none', display: 'block' });
+        _iframe.setAttribute('allowfullscreen', '');
+        _iframe.setAttribute('allow', 'autoplay; gamepad *');
 
         var ejsButtons = JSON.stringify({
-            playPause: false, restart: true, mute: false, settings: false,
+            playPause: false, restart: false, mute: false, settings: false,
             fullscreen: false, saveState: false, loadState: false,
             screenRecord: false, gamepad: false, cheat: false,
             volume: false, netplay: false,
@@ -215,254 +444,93 @@
             exitEmulation: false,
         });
 
-        // SNES gamepad: D-pad + B/A/Y/X (diamante) + Start + Select
-        // input_value mapping (RetroArch snes9x):
-        //   B=0, Y=1, Select=2, Start=3, Up=4, Down=5, Left=6, Right=7, A=8, X=9
-        var ejsGamepad = JSON.stringify([
-            {type: 'dpad',   location: 'left',   inputValues: [4, 5, 6, 7]},
-            {type: 'button', text: 'B', id: 'b', location: 'right', input_value: 0},
-            {type: 'button', text: 'A', id: 'a', location: 'right', input_value: 8},
-            {type: 'button', text: 'Y', id: 'y', location: 'right', input_value: 1},
-            {type: 'button', text: 'X', id: 'x', location: 'right', input_value: 9},
-            {type: 'button', text: 'Start',  id: 'start',  location: 'center', input_value: 3},
-            {type: 'button', text: 'Select', id: 'select', location: 'center', input_value: 2}
-        ]);
-
-        iframe.srcdoc = [
-            '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        _iframe.srcdoc = [
+            '<!DOCTYPE html><html><head>',
+            '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#0f172a;width:100%;height:100vh;overflow:hidden}',
-            '#ejs-game{width:100%;height:100%;background:#0f172a}',
-            '.ejs_menu_bar,.ejs-menu{display:none!important}',
-            'canvas{max-width:100%!important;display:block!important;margin:0 auto!important}',
-
-            // Gamepad container
-            '.ejs_virtualGamepad_parent{',
-            '  top:40vh!important;',
-            '  bottom:56px!important;',
-            '  height:auto!important;',
-            '  overflow:visible!important;',
-            '  background:#0f172a!important;',
-            '}',
-            '.ejs_virtualGamepad_right,.ejs_virtualGamepad_left,.ejs_virtualGamepad_bottom{',
-            '  overflow:visible!important;',
-            '}',
-
-            // Botoes base
-            '.ejs_virtualGamepad_button{',
-            '  border-radius:50%!important;',
-            '  width:68px!important;height:68px!important;',
-            '  border:2px solid rgba(255,255,255,.22)!important;',
-            '  color:#fff!important;',
-            '  font-size:20px!important;font-weight:bold!important;',
-            '  font-family:"Russo One",sans-serif!important;',
-            '  text-shadow:0 2px 6px rgba(0,0,0,.6)!important;',
-            '  display:flex!important;align-items:center!important;justify-content:center!important;',
-            '}',
-            '.ejs_dpad_bar{',
-            '  background:rgba(90,90,100,.75)!important;',
-            '  border-radius:6px!important;',
-            '}',
-            '.ejs_virtualGamepad_button_down{',
-            '  opacity:.65!important;',
-            '  transform:scale(.92)!important;',
-            '}',
+            'body{background:#000;width:100%;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+            '#ejs-game{width:100%;height:100vh}',
+            '.ejs_menu_bar,.ejs-menu,.ejs_virtualGamepad_parent{display:none!important}',
+            'canvas{display:block!important;margin:0 auto!important}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
-            'window.EJS_player        = "#ejs-game";',
-            'window.EJS_core          = "snes9x";',
-            'window.EJS_gameUrl       = ' + JSON.stringify(absRom) + ';',
-            'window.EJS_pathtodata    = ' + JSON.stringify(EJS_CDN) + ';',
-            'window.EJS_color         = "#7c3aed";',
-            'window.EJS_startOnLoaded = true;',
-            'window.EJS_Buttons       = ' + ejsButtons + ';',
-            'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
-
-            // MutationObserver: posiciona botoes em diamante
-            '(function(){',
-            '  var _done=new Set();',
-            '  function _style(){',
-            '    var gp=document.querySelector(".ejs_virtualGamepad_parent");',
-            '    document.querySelectorAll(".ejs_virtualGamepad_button").forEach(function(b){',
-            '      if(_done.has(b))return;',
-            '      var txt=b.textContent.trim().toUpperCase();',
-
-            // B: principal — grande, azul, centro-inferior do diamante
-            '      if(txt==="B"){',
-            '        _done.add(b);',
-            '        b.style.setProperty("width","72px","important");',
-            '        b.style.setProperty("height","72px","important");',
-            '        b.style.setProperty("font-size","24px","important");',
-            '        b.style.background="linear-gradient(145deg,#3b82f6,#1d4ed8)";',
-            '        b.style.boxShadow="0 0 22px rgba(59,130,246,.65),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.5)";',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="36px";',
-            '          b.style.top="55%";',
-            '          b.style.left="auto";',
-            '        }',
-
-            // A: vermelho, direita do diamante
-            '      }else if(txt==="A"){',
-            '        _done.add(b);',
-            '        b.style.setProperty("width","64px","important");',
-            '        b.style.setProperty("height","64px","important");',
-            '        b.style.setProperty("font-size","22px","important");',
-            '        b.style.background="linear-gradient(145deg,#ef4444,#b91c1c)";',
-            '        b.style.boxShadow="0 0 18px rgba(239,68,68,.55),inset 0 -2px 4px rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.45)";',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="2px";',
-            '          b.style.top="33%";',
-            '          b.style.left="auto";',
-            '        }',
-
-            // Y: verde, esquerda do diamante
-            '      }else if(txt==="Y"){',
-            '        _done.add(b);',
-            '        b.style.setProperty("width","64px","important");',
-            '        b.style.setProperty("height","64px","important");',
-            '        b.style.setProperty("font-size","22px","important");',
-            '        b.style.background="linear-gradient(145deg,#10b981,#047857)";',
-            '        b.style.boxShadow="0 0 18px rgba(16,185,129,.55),inset 0 -2px 4px rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.45)";',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="70px";',
-            '          b.style.top="33%";',
-            '          b.style.left="auto";',
-            '        }',
-
-            // X: amarelo, topo do diamante
-            '      }else if(txt==="X"){',
-            '        _done.add(b);',
-            '        b.style.setProperty("width","58px","important");',
-            '        b.style.setProperty("height","58px","important");',
-            '        b.style.setProperty("font-size","20px","important");',
-            '        b.style.background="linear-gradient(145deg,#eab308,#a16207)";',
-            '        b.style.boxShadow="0 0 16px rgba(234,179,8,.5),inset 0 -2px 4px rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.45)";',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="39px";',
-            '          b.style.top="8%";',
-            '          b.style.left="auto";',
-            '        }',
-
-            // Start: pilula central
-            '      }else if(/start/i.test(txt)){',
-            '        _done.add(b);',
-            '        b.style.setProperty("border-radius","22px","important");',
-            '        b.style.setProperty("width","90px","important");',
-            '        b.style.setProperty("height","auto","important");',
-            '        b.style.setProperty("padding","8px 0","important");',
-            '        b.style.setProperty("font-size","12px","important");',
-            '        b.style.background="rgba(50,50,60,.85)";',
-            '        b.style.letterSpacing="1.5px";',
-            '        b.style.boxShadow="0 2px 8px rgba(0,0,0,.5)";',
-            '        b.style.setProperty("text-align","center","important");',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.bottom="8px";',
-            '          b.style.right="0";',
-            '          b.style.left="auto";',
-            '          b.style.margin="0";',
-            '          b.style.top="auto";',
-            '        }',
-
-            // Select: pilula central (esquerda do Start)
-            '      }else if(/select/i.test(txt)){',
-            '        _done.add(b);',
-            '        b.style.setProperty("border-radius","22px","important");',
-            '        b.style.setProperty("width","90px","important");',
-            '        b.style.setProperty("height","auto","important");',
-            '        b.style.setProperty("padding","8px 0","important");',
-            '        b.style.setProperty("font-size","12px","important");',
-            '        b.style.background="rgba(50,50,60,.85)";',
-            '        b.style.letterSpacing="1.5px";',
-            '        b.style.boxShadow="0 2px 8px rgba(0,0,0,.5)";',
-            '        b.style.setProperty("text-align","center","important");',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.bottom="8px";',
-            '          b.style.left="0";',
-            '          b.style.right="auto";',
-            '          b.style.margin="0";',
-            '          b.style.top="auto";',
-            '        }',
-
-            '      }else{',
-            '        if(!_done.has(b)){',
-            '          _done.add(b);',
-            '          b.style.background="rgba(40,40,50,.7)";',
-            '          b.style.setProperty("border","1px solid rgba(255,255,255,.12)","important");',
-            '        }',
-            '      }',
-            '    });',
-            '  }',
-            '  new MutationObserver(_style).observe(document.documentElement,{childList:true,subtree:true});',
-            '})();',
-
-            // Ao iniciar: foca canvas + reposiciona gamepad colado ao canvas
-            'window.EJS_onGameStart=function(){',
-            '  var c=document.querySelector("canvas");',
-            '  if(c){c.setAttribute("tabindex","0");c.focus();}',
-            '  setTimeout(function(){',
-            '    var canvas=document.querySelector("canvas");',
-            '    var gp=document.querySelector(".ejs_virtualGamepad_parent");',
-            '    if(canvas&&gp){',
-            '      var rect=canvas.getBoundingClientRect();',
-            '      var pct=Math.ceil(((rect.bottom+2)/window.innerHeight)*100);',
-            '      pct=Math.max(25,Math.min(50,pct));',
-            '      gp.style.setProperty("top",pct+"vh","important");',
-            '    }',
-            '  },700);',
-            '};',
+            'window.EJS_player="#ejs-game";',
+            'window.EJS_core="snes9x";',
+            'window.EJS_gameUrl=' + JSON.stringify(absRom) + ';',
+            'window.EJS_pathtodata=' + JSON.stringify(EJS_CDN) + ';',
+            'window.EJS_color="#7c3aed";',
+            'window.EJS_startOnLoaded=true;',
+            'window.EJS_VirtualGamepadSettings=[];',
+            'window.EJS_Buttons=' + ejsButtons + ';',
+            'window.EJS_onGameStart=function(){var c=document.querySelector("canvas");if(c){c.setAttribute("tabindex","0");c.focus();}};',
             '<\/script>',
             '<script src="' + EJS_CDN + 'loader.js"><\/script>',
             '</body></html>',
         ].join('');
 
-        _overlay.appendChild(iframe);
+        centerPanel.appendChild(_iframe);
 
-        // Botao Sair
+        // Botao fechar (canto superior direito da tela central)
         var exitBtn = document.createElement('button');
-        exitBtn.setAttribute('aria-label', 'Sair');
-        exitBtn.innerHTML =
-            '<span class="material-icons" style="font-size:18px;pointer-events:none;">arrow_back</span>' +
-            '<span style="pointer-events:none;margin-left:5px;">Sair</span>';
+        var exitIcon = document.createElement('span');
+        exitIcon.className = 'material-icons';
+        exitIcon.textContent = 'close';
+        exitIcon.style.fontSize = '16px';
+        exitIcon.style.pointerEvents = 'none';
+        exitBtn.appendChild(exitIcon);
         Object.assign(exitBtn.style, {
-            position: 'fixed',
-            top: '16px', left: '12px',
-            zIndex: '9200',
-            display: 'flex', alignItems: 'center',
-            padding: '6px 14px',
-            background: 'rgba(15,23,42,0.85)',
-            border: '1px solid rgba(255,255,255,0.28)',
-            color: '#f1f5f9', borderRadius: '20px',
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            zIndex: '10',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.65)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            color: '#f1f5f9',
             cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
-            minWidth: '56px', minHeight: '44px',
-            fontSize: '0.75rem', fontFamily: 'Inter,sans-serif',
-            whiteSpace: 'nowrap',
         });
         exitBtn.addEventListener('click', function () {
             window.fecharJoguinhos ? window.fecharJoguinhos() : window.SNESGame.fechar();
         });
-        _overlay.appendChild(exitBtn);
+        centerPanel.appendChild(exitBtn);
 
+        // --- Painel direito: R + diamante YXAB + START ---
+        var rightPanel = document.createElement('div');
+        Object.assign(rightPanel.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: '100%',
+            padding: '12px 8px',
+        });
+        rightPanel.appendChild(_makeShoulderBtn('R', 11));
+        rightPanel.appendChild(_makeDiamond());
+        rightPanel.appendChild(_makeSmallBtn('START', 3));
+
+        psp.appendChild(leftPanel);
+        psp.appendChild(centerPanel);
+        psp.appendChild(rightPanel);
+        _overlay.appendChild(psp);
         document.body.appendChild(_overlay);
 
+        _applyLandscape();
+        _resizeHandler = _applyLandscape;
+        window.addEventListener('resize', _resizeHandler);
+        window.addEventListener('orientationchange', _resizeHandler);
+
         _onKey = function (e) {
-            if (e.key === 'Escape' && e.target === document.body) {
+            if (e.key === 'Escape') {
                 window.fecharJoguinhos ? window.fecharJoguinhos() : window.SNESGame.fechar();
             }
         };
@@ -478,8 +546,14 @@
         },
 
         fechar: function () {
-            if (_onKey)   { document.removeEventListener('keydown', _onKey); _onKey = null; }
+            if (_onKey)         { document.removeEventListener('keydown', _onKey); _onKey = null; }
+            if (_resizeHandler) {
+                window.removeEventListener('resize', _resizeHandler);
+                window.removeEventListener('orientationchange', _resizeHandler);
+                _resizeHandler = null;
+            }
             if (_overlay) { _overlay.remove(); _overlay = null; }
+            _iframe = null;
         },
     };
 
