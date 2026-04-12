@@ -18,14 +18,14 @@
     var _onKeyDown = null;
 
     var PLANETS = {
-        mercury: { title:'Mercury', description:'Tiny and close to the sun.',                                           tilt:3.13,  gravity:0.9, hours:10, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/1_mercury.jpg' },
-        venus:   { title:'Venus',   description:'A planet of razors and tennis players.',                              tilt:4.13,  gravity:0.2, hours:20, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/2_venus.jpg'   },
-        earth:   { title:'Earth',   description:'Voted best planet in the Solar System by all organisms.',             tilt:5.13,  gravity:7.3, hours:30, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/3_earth.jpg'   },
-        mars:    { title:'Mars',    description:"Future Site of Elon Musk's AirBnB.",                                  tilt:6.13,  gravity:1.1, hours:40, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/4_mars.jpg'    },
-        jupiter: { title:'Jupiter', description:'Twice as massive as the other planets combined.',                     tilt:11.13, gravity:1.8, hours:50, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/5_jupiter.jpg' },
-        saturn:  { title:'Saturn',  description:'This planet sponsored by Zales.',                                    tilt:9.13,  gravity:7.3, hours:60, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/6_saturn.jpg'  },
-        uranus:  { title:'Uranus',  description:"Hey, stop laughing. It's not funny.",                                tilt:11.13, gravity:1.8, hours:50, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/7_uranus.jpg'  },
-        neptune: { title:'Neptune', description:"A planet for pirates; just narrowly made the cut.",                  tilt:31.03, gravity:8.9, hours:10, img:'https://s3-us-west-2.amazonaws.com/s.cdpn.io/t-1188/8_neptune.jpg' }
+        mercury: { title:'Mercury', description:'Tiny and close to the sun.',                                           tilt:3.13,  gravity:0.9, hours:10, img:'assets/sprites/solar-system/1_mercury.jpg' },
+        venus:   { title:'Venus',   description:'A planet of razors and tennis players.',                              tilt:4.13,  gravity:0.2, hours:20, img:'assets/sprites/solar-system/2_venus.jpg'   },
+        earth:   { title:'Earth',   description:'Voted best planet in the Solar System by all organisms.',             tilt:5.13,  gravity:7.3, hours:30, img:'assets/sprites/solar-system/3_earth.jpg'   },
+        mars:    { title:'Mars',    description:"Future Site of Elon Musk's AirBnB.",                                  tilt:6.13,  gravity:1.1, hours:40, img:'assets/sprites/solar-system/4_mars.jpg'    },
+        jupiter: { title:'Jupiter', description:'Twice as massive as the other planets combined.',                     tilt:11.13, gravity:1.8, hours:50, img:'assets/sprites/solar-system/5_jupiter.jpg' },
+        saturn:  { title:'Saturn',  description:'This planet sponsored by Zales.',                                    tilt:9.13,  gravity:7.3, hours:60, img:'assets/sprites/solar-system/6_saturn.jpg'  },
+        uranus:  { title:'Uranus',  description:"Hey, stop laughing. It's not funny.",                                tilt:11.13, gravity:1.8, hours:50, img:'assets/sprites/solar-system/7_uranus.jpg'  },
+        neptune: { title:'Neptune', description:"A planet for pirates; just narrowly made the cut.",                  tilt:31.03, gravity:8.9, hours:10, img:'assets/sprites/solar-system/8_neptune.jpg' }
     };
 
     // ---- Helpers de animacao ----
