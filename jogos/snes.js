@@ -219,19 +219,47 @@
     }
 
     // Tenta bloquear a orientacao em landscape.
-    // Quando o lock falha (browser nao permite fora de fullscreen),
-    // mostra hint "gire o celular" enquanto innerHeight > innerWidth.
+    // Requer fullscreen em browsers modernos — por isso pede fullscreen antes.
+    // Se o lock falhar, mostra hint "gire o celular" enquanto innerHeight > innerWidth.
     function _tryLockLandscape() {
         if (_orientationLocked) return;
-        try {
-            if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                var p = screen.orientation.lock('landscape');
-                if (p && typeof p.then === 'function') {
-                    p.then(function () { _orientationLocked = true; })
-                     .catch(function () { /* silencioso — fallback vira hint */ });
+        var lockLandscape = function () {
+            try {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    var p = screen.orientation.lock('landscape');
+                    if (p && typeof p.then === 'function') {
+                        p.then(function () { _orientationLocked = true; _updateRotateHint(); })
+                         .catch(function () { /* fallback vira hint */ });
+                    }
                 }
+            } catch (e) { /* ignora */ }
+        };
+        // Tenta fullscreen (unlock pre-req em Chrome/Firefox mobile)
+        var el = _overlay || document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen ||
+                  el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (req) {
+            try {
+                var fp = req.call(el);
+                if (fp && typeof fp.then === 'function') {
+                    fp.then(lockLandscape).catch(lockLandscape);
+                } else {
+                    lockLandscape();
+                }
+            } catch (e) { lockLandscape(); }
+        } else {
+            lockLandscape();
+        }
+    }
+
+    function _exitFullscreen() {
+        try {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                var ex = document.exitFullscreen || document.webkitExitFullscreen ||
+                         document.mozCancelFullScreen || document.msExitFullscreen;
+                if (ex) ex.call(document);
             }
-        } catch (e) { /* ignora — fallback vira hint */ }
+        } catch (e) { /* ignora */ }
     }
 
     function _unlockOrientation() {
@@ -241,6 +269,7 @@
             }
         } catch (e) { /* ignora */ }
         _orientationLocked = false;
+        _exitFullscreen();
     }
 
     function _updateRotateHint() {

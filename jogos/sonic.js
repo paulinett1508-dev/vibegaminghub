@@ -399,15 +399,43 @@
     var S;
 
     // ---- Orientation (mesma logica de snes.js/donkeykong.js) ----
+    // Pede fullscreen antes do lock — browsers modernos so permitem
+    // orientation.lock() em contexto fullscreen
     function tryLockLandscape() {
         if (orientationLocked) return;
-        try {
-            if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                var p = screen.orientation.lock('landscape');
-                if (p && typeof p.then === 'function') {
-                    p.then(function () { orientationLocked = true; })
-                     .catch(function () { /* fallback vira hint */ });
+        var lockLandscape = function () {
+            try {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    var p = screen.orientation.lock('landscape');
+                    if (p && typeof p.then === 'function') {
+                        p.then(function () { orientationLocked = true; updateRotateHint(); })
+                         .catch(function () { /* fallback vira hint */ });
+                    }
                 }
+            } catch (e) { /* ignora */ }
+        };
+        var el = overlay || document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen ||
+                  el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (req) {
+            try {
+                var fp = req.call(el);
+                if (fp && typeof fp.then === 'function') {
+                    fp.then(lockLandscape).catch(lockLandscape);
+                } else {
+                    lockLandscape();
+                }
+            } catch (e) { lockLandscape(); }
+        } else {
+            lockLandscape();
+        }
+    }
+    function exitFullscreen() {
+        try {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                var ex = document.exitFullscreen || document.webkitExitFullscreen ||
+                         document.mozCancelFullScreen || document.msExitFullscreen;
+                if (ex) ex.call(document);
             }
         } catch (e) { /* ignora */ }
     }
@@ -418,6 +446,7 @@
             }
         } catch (e) { /* ignora */ }
         orientationLocked = false;
+        exitFullscreen();
     }
     function updateRotateHint() {
         if (!rotateHintEl) return;
