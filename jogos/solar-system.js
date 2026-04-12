@@ -18,6 +18,7 @@
     var _onKeyDown = null;
     var _onWheel = null;
     var _onTouchStart = null;
+    var _onTouchMove = null;
     var _onTouchEnd = null;
     var _scrollCooldown = false;
     var _touchStartX = 0;
@@ -148,9 +149,11 @@
             '.ss-planet{grid-column:1;grid-row:1/-1;overflow:hidden;height:100%;width:100%;display:grid;grid-template-columns:10% 40% 40% 10%;grid-template-rows:10% 1fr 1fr;grid-template-areas:"header header header header" "x title details y" "x planet photos photos";visibility:hidden;transition:visibility .01s linear var(--ss-duration);}',
             '.ss-planet[data-active]{visibility:visible;opacity:1;transition-delay:0s;}',
             '.ss-planet>.ss-planet-title{display:block;grid-area:title;}',
-            '.ss-planet>.ss-planet-figure{grid-column:1/-1;grid-row:planet;padding:0;margin:0 auto;position:relative;}',
-            '.ss-planet>.ss-planet-figure img{max-width:100%;margin-bottom:-50%;}',
-            '.ss-planet>.ss-planet-figure::after{content:"";position:fixed;bottom:0;top:0;width:100%;left:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 30%);z-index:2;}',
+            '.ss-planet>.ss-planet-figure{position:absolute;bottom:-8%;left:50%;transform:translateX(-50%);width:min(82vh,82vw);height:min(82vh,82vw);z-index:1;margin:0;padding:0;}',
+            '.ss-planet>.ss-planet-figure img{width:100%;height:100%;border-radius:50%;object-fit:cover;max-width:none;}',
+            '.ss-planet>.ss-planet-figure::after{content:"";position:fixed;bottom:0;top:0;width:100%;left:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,transparent 45%);z-index:2;}',
+            '.ss-planet>.ss-planet-title{position:relative;z-index:5;}',
+            '.ss-planet>.ss-planet-details{position:relative;z-index:5;}',
             '.ss-planet>.ss-planet-details{grid-area:details;display:flex;flex-direction:row;justify-content:space-between;}',
             '.ss-detail{font-size:5vmin;width:3em;font-weight:400;display:flex;margin-left:.4em;flex-shrink:0;align-self:start;}',
             '.ss-detail:after{content:attr(data-postfix);}',
@@ -294,19 +297,44 @@
         };
         _root.addEventListener('wheel', _onWheel, { passive: false });
 
-        // Swipe touch
+        // Drag touch com feedback visual
         _onTouchStart = function (e) {
             _touchStartX = e.touches[0].clientX;
+            var active = _root.querySelector('.ss-planet[data-active]');
+            if (active) active.style.transition = 'none';
+        };
+        _onTouchMove = function (e) {
+            var dx = e.touches[0].clientX - _touchStartX;
+            var active = _root.querySelector('.ss-planet[data-active]');
+            if (!active) return;
+            var tx = dx * 0.45;
+            var fade = 1 - Math.min(Math.abs(dx) / 380, 0.45);
+            active.style.transform = 'translateX(' + tx + 'px)';
+            active.style.opacity = String(fade);
         };
         _onTouchEnd = function (e) {
-            if (_scrollCooldown) return;
             var dx = e.changedTouches[0].clientX - _touchStartX;
-            if (Math.abs(dx) < 50) return;
+            var active = _root ? _root.querySelector('.ss-planet[data-active]') : null;
+            if (active) {
+                if (Math.abs(dx) >= 60 && !_scrollCooldown) {
+                    // Avanca: reset instantaneo antes da troca
+                    active.style.transition = 'none';
+                    active.style.transform = '';
+                    active.style.opacity = '';
+                } else {
+                    // Snap back com animacao
+                    active.style.transition = 'transform .35s cubic-bezier(.25,.46,.45,.94), opacity .35s ease';
+                    active.style.transform = '';
+                    active.style.opacity = '';
+                }
+            }
+            if (_scrollCooldown || Math.abs(dx) < 60) return;
             _scrollCooldown = true;
             setTimeout(function () { _scrollCooldown = false; }, 850);
             _advance(dx < 0 ? 1 : -1);
         };
         _root.addEventListener('touchstart', _onTouchStart, { passive: true });
+        _root.addEventListener('touchmove', _onTouchMove, { passive: true });
         _root.addEventListener('touchend', _onTouchEnd, { passive: true });
     }
 
@@ -359,7 +387,8 @@
             if (_onKeyDown)     { window.removeEventListener('keydown', _onKeyDown); _onKeyDown = null; }
             if (_onWheel)       { if (_root) _root.removeEventListener('wheel', _onWheel); _onWheel = null; }
             if (_onTouchStart)  { if (_root) _root.removeEventListener('touchstart', _onTouchStart); _onTouchStart = null; }
-            if (_onTouchEnd)    { if (_root) _root.removeEventListener('touchend', _onTouchEnd); _onTouchEnd = null; }
+            if (_onTouchMove)   { if (_root) _root.removeEventListener('touchmove', _onTouchMove);  _onTouchMove = null; }
+            if (_onTouchEnd)    { if (_root) _root.removeEventListener('touchend', _onTouchEnd);   _onTouchEnd = null; }
             if (_root) { _root.remove(); _root = null; }
             if (_styleTag) { _styleTag.remove(); _styleTag = null; }
             _currentPlanetIndex = 0;
