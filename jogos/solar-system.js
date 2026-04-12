@@ -16,6 +16,11 @@
     var _planetKeys = ['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune'];
     var _animFrames = [];
     var _onKeyDown = null;
+    var _onWheel = null;
+    var _onTouchStart = null;
+    var _onTouchEnd = null;
+    var _scrollCooldown = false;
+    var _touchStartX = 0;
 
     var PLANETS = {
         mercury: { title:'Mercury', description:'Tiny and close to the sun.',                                           tilt:3.13,  gravity:0.9, hours:10, img:'assets/sprites/solar-system/1_mercury.jpg' },
@@ -170,7 +175,13 @@
             '@media(max-width:600px){.ss-planet-nav svg{margin-bottom:-55%;}}',
             '.ss-planet-nav tspan{cursor:pointer;fill:#FFF;pointer-events:auto;opacity:0;transition:opacity var(--ss-duration) linear;}',
             '.ss-planet-nav tspan[x]{opacity:.6;}',
-            '.ss-planet-nav tspan:hover,.ss-planet-nav tspan:focus{opacity:1;}'
+            '.ss-planet-nav tspan:hover,.ss-planet-nav tspan:focus{opacity:1;}',
+            /* Rotacao do planeta ativo */
+            '@keyframes ss-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
+            '.ss-planet[data-active] .ss-planet-figure img{animation:ss-spin 20s linear infinite;}',
+            /* Hint de scroll */
+            '.ss-scroll-hint{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:20;color:rgba(255,255,255,.45);font-size:12px;letter-spacing:2px;text-transform:uppercase;pointer-events:none;display:flex;align-items:center;gap:6px;}',
+            '.ss-scroll-hint::before{content:"←";font-size:14px;}.ss-scroll-hint::after{content:"→";font-size:14px;}'
         ].join('\n');
     }
 
@@ -206,6 +217,10 @@
         var svg = _root.querySelector('.ss-planet-nav svg');
         if (svg) svg.style.setProperty('--ss-active', i);
         _selectPlanet(_planetKeys[i]);
+    }
+
+    function _advance(dir) {
+        _selectByIndex((_currentPlanetIndex + dir + _planetKeys.length) % _planetKeys.length);
     }
 
     // ---- Inicializacao ----
@@ -257,10 +272,35 @@
                 if (window.fecharJoguinhos) window.fecharJoguinhos();
                 else window.SolarSystemGame.fechar();
             }
-            if (e.key === 'ArrowRight') _selectByIndex((_currentPlanetIndex + 1) % _planetKeys.length);
-            if (e.key === 'ArrowLeft')  _selectByIndex((_currentPlanetIndex - 1 + _planetKeys.length) % _planetKeys.length);
+            if (e.key === 'ArrowRight') _advance(1);
+            if (e.key === 'ArrowLeft')  _advance(-1);
         };
         window.addEventListener('keydown', _onKeyDown);
+
+        // Scroll para navegar entre planetas
+        _onWheel = function (e) {
+            e.preventDefault();
+            if (_scrollCooldown) return;
+            _scrollCooldown = true;
+            setTimeout(function () { _scrollCooldown = false; }, 850);
+            _advance(e.deltaY > 0 ? 1 : -1);
+        };
+        _root.addEventListener('wheel', _onWheel, { passive: false });
+
+        // Swipe touch
+        _onTouchStart = function (e) {
+            _touchStartX = e.touches[0].clientX;
+        };
+        _onTouchEnd = function (e) {
+            if (_scrollCooldown) return;
+            var dx = e.changedTouches[0].clientX - _touchStartX;
+            if (Math.abs(dx) < 50) return;
+            _scrollCooldown = true;
+            setTimeout(function () { _scrollCooldown = false; }, 850);
+            _advance(dx < 0 ? 1 : -1);
+        };
+        _root.addEventListener('touchstart', _onTouchStart, { passive: true });
+        _root.addEventListener('touchend', _onTouchEnd, { passive: true });
     }
 
     function _loadSplitting(cb) {
@@ -299,6 +339,8 @@
             _planetKeys.forEach(function (k, i) {
                 appDiv.appendChild(_buildPlanetEl(k, i === 0));
             });
+            var hint = _el('div', { class:'ss-scroll-hint', text:'scroll / swipe' });
+            appDiv.appendChild(hint);
 
             _root.appendChild(appDiv);
             document.body.appendChild(_root);
@@ -309,11 +351,15 @@
         fechar: function () {
             _animFrames.forEach(function (id) { cancelAnimationFrame(id); });
             _animFrames = [];
-            if (_onKeyDown) { window.removeEventListener('keydown', _onKeyDown); _onKeyDown = null; }
+            if (_onKeyDown)     { window.removeEventListener('keydown', _onKeyDown); _onKeyDown = null; }
+            if (_onWheel)       { if (_root) _root.removeEventListener('wheel', _onWheel); _onWheel = null; }
+            if (_onTouchStart)  { if (_root) _root.removeEventListener('touchstart', _onTouchStart); _onTouchStart = null; }
+            if (_onTouchEnd)    { if (_root) _root.removeEventListener('touchend', _onTouchEnd); _onTouchEnd = null; }
             if (_root) { _root.remove(); _root = null; }
             if (_styleTag) { _styleTag.remove(); _styleTag = null; }
             _currentPlanetIndex = 0;
             _currentPlanet = null;
+            _scrollCooldown = false;
         }
     };
 
