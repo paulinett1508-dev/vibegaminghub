@@ -15,6 +15,7 @@
             id: 'penaltis',
             nome: 'Penaltis',
             icon: 'sports_soccer',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#10b981,#059669)',
             abrir: function () {
                 if (!window.PenaltisGame) return;
@@ -34,6 +35,7 @@
             id: 'escorpiao',
             nome: 'Escorpiao',
             icon: 'pest_control',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#f59e0b,#b45309)',
             abrir: function () {
                 if (window.EscorpiaoGame) window.EscorpiaoGame.abrir();
@@ -46,6 +48,7 @@
             id: 'reptil',
             nome: 'Reptil',
             icon: 'pest_control_rodent',
+            categoria: 'vibe',
             cor: 'linear-gradient(135deg,#10b981,#f97316)',
             abrir: function () { mostrarPickerReptil(); },
             fechar: function () {
@@ -58,6 +61,7 @@
             id: 'pacman',
             nome: 'Pac-Man',
             icon: 'adjust',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#fbbf24,#f59e0b)',
             abrir: function () {
                 if (window.PacmanGame) window.PacmanGame.abrir();
@@ -70,6 +74,7 @@
             id: 'tamandua',
             nome: 'Tamandua',
             icon: 'pets',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
             abrir: function () {
                 if (window.TamanduaGame) window.TamanduaGame.abrir();
@@ -82,6 +87,7 @@
             id: 'aranha',
             nome: 'Aranha',
             icon: 'pest_control',
+            categoria: 'vibe',
             cor: 'linear-gradient(135deg,#1a1a2e,#6c2bd9)',
             abrir: function () { if (window.AranhaGame) window.AranhaGame.abrir(); },
             fechar: function () { if (window.AranhaGame) window.AranhaGame.fechar(); }
@@ -90,6 +96,7 @@
             id: 'arco',
             nome: 'Arco',
             icon: 'sports',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg, #1a3a1a, #2d7a2d)',
             abrir: function () { if (window.ArcoGame) window.ArcoGame.abrir(); },
             fechar: function () { if (window.ArcoGame) window.ArcoGame.fechar(); }
@@ -99,6 +106,7 @@
             nome: 'Sonic',
             icon: 'speed',
             iconCanvas: true,
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#1a3a9e,#0ea5e9)',
             abrir: function () { if (window.MegadriveGame) window.MegadriveGame.abrir(); },
             fechar: function () { if (window.MegadriveGame) window.MegadriveGame.fechar(); }
@@ -107,6 +115,7 @@
             id: 'donkeykong',
             nome: 'Donkey Kong',
             icon: 'emoji_nature',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#92400e,#f59e0b)',
             abrir: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.abrir(); },
             fechar: function () { if (window.DonkeyKongGame) window.DonkeyKongGame.fechar(); }
@@ -115,6 +124,7 @@
             id: 'snes',
             nome: 'SNES',
             icon: 'sports_esports',
+            categoria: 'gameplay',
             cor: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
             abrir: function () { if (window.SNESGame) window.SNESGame.abrir(); },
             fechar: function () { if (window.SNESGame) window.SNESGame.fechar(); }
@@ -123,6 +133,7 @@
             id: 'solarsystem',
             nome: 'Solar System',
             icon: 'public',
+            categoria: 'vibe',
             cor: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
             abrir: function () { if (window.SolarSystemGame) window.SolarSystemGame.abrir(); },
             fechar: function () { if (window.SolarSystemGame) window.SolarSystemGame.fechar(); }
@@ -260,7 +271,7 @@
         jogoAtual = jogo;
         mostrarTela('tela-jogo');
         // Jogos com overlay proprio (fullscreen) escondem a tela-jogo
-        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'aranha' || jogo.id === 'arco' || jogo.id === 'donkeykong' || jogo.id === 'snes') {
+        if (jogo.id === 'escorpiao' || jogo.id === 'reptil' || jogo.id === 'pacman' || jogo.id === 'tamandua' || jogo.id === 'sonic' || jogo.id === 'aranha' || jogo.id === 'arco' || jogo.id === 'donkeykong' || jogo.id === 'snes' || jogo.id === 'solarsystem') {
             document.getElementById('tela-jogo').classList.add('hidden');
         }
         jogo.abrir();
@@ -286,28 +297,61 @@
         if (!grid) return;
         grid.innerHTML = '';
 
-        JOGOS.forEach(function (jogo) {
-            var card = document.createElement('button');
-            card.className = 'hub-card';
-            card.setAttribute('aria-label', jogo.nome);
+        var secoes = [
+            { key: 'gameplay', label: '⚡ Gameplays' },
+            { key: 'vibe',     label: '✦ Vibes' }
+        ];
 
-            var iconInner = jogo.iconCanvas
-                ? '<canvas width="52" height="52" style="display:block;"></canvas>'
-                : '<span class="material-icons">' + jogo.icon + '</span>';
+        secoes.forEach(function (secao) {
+            var jogosSecao = JOGOS.filter(function (j) { return j.categoria === secao.key; });
+            if (!jogosSecao.length) return;
 
-            card.innerHTML =
-                '<div class="hub-card-icon" style="background:' + jogo.cor + ';">' +
-                    iconInner +
-                '</div>' +
-                '<div class="hub-card-name">' + jogo.nome + '</div>';
+            var label = document.createElement('div');
+            label.className = 'hub-section-label';
+            label.textContent = secao.label;
+            grid.appendChild(label);
 
-            card.addEventListener('click', function () { irParaJogo(jogo); });
-            grid.appendChild(card);
+            var sectionGrid = document.createElement('div');
+            sectionGrid.className = 'hub-section-grid';
 
-            if (jogo.iconCanvas) {
-                var cv = card.querySelector('canvas');
-                if (cv) _drawSonicIcon(cv);
-            }
+            jogosSecao.forEach(function (jogo) {
+                var card = document.createElement('button');
+                card.className = 'hub-card';
+                card.setAttribute('aria-label', jogo.nome);
+
+                var iconDiv = document.createElement('div');
+                iconDiv.className = 'hub-card-icon';
+                iconDiv.style.background = jogo.cor;
+
+                var iconEl;
+                if (jogo.iconCanvas) {
+                    iconEl = document.createElement('canvas');
+                    iconEl.width = 36;
+                    iconEl.height = 36;
+                    iconEl.style.display = 'block';
+                } else {
+                    iconEl = document.createElement('span');
+                    iconEl.className = 'material-icons';
+                    iconEl.textContent = jogo.icon;
+                }
+                iconDiv.appendChild(iconEl);
+
+                var nameDiv = document.createElement('div');
+                nameDiv.className = 'hub-card-name';
+                nameDiv.textContent = jogo.nome;
+
+                card.appendChild(iconDiv);
+                card.appendChild(nameDiv);
+                card.addEventListener('click', function () { irParaJogo(jogo); });
+                sectionGrid.appendChild(card);
+
+                if (jogo.iconCanvas) {
+                    var cvEl = card.querySelector('canvas');
+                    if (cvEl) _drawSonicIcon(cvEl);
+                }
+            });
+
+            grid.appendChild(sectionGrid);
         });
     }
 
@@ -631,36 +675,6 @@
         ].join(';');
         iconWrap.innerHTML = '<span class="material-icons" style="font-size:40px;color:#FFD700;">sports_esports</span>';
         card.appendChild(iconWrap);
-
-        // Balao de fala
-        var balao = document.createElement('div');
-        balao.style.cssText = [
-            'position:relative',
-            'background:#FFD700',
-            'color:#111',
-            'font-family:"Space Grotesk",sans-serif',
-            'font-weight:700',
-            'font-size:clamp(1.4rem,6vw,2rem)',
-            'padding:14px 32px',
-            'border:2px solid #f0ead8',
-            'border-radius:4px',
-            'text-align:center',
-            'box-shadow:3px 3px 0 0 #f0ead8',
-            'margin-top:4px',
-        ].join(';');
-        balao.textContent = opcoes.texto || 'Sair?';
-
-        // Setinha do balao (triangulo apontando pra cima)
-        var seta = document.createElement('div');
-        seta.style.cssText = [
-            'position:absolute', 'top:-10px', 'left:50%', 'transform:translateX(-50%)',
-            'width:0', 'height:0',
-            'border-left:12px solid transparent',
-            'border-right:12px solid transparent',
-            'border-bottom:12px solid #FFD700',
-        ].join(';');
-        balao.appendChild(seta);
-        card.appendChild(balao);
 
         // Container dos botoes
         var btns = document.createElement('div');
