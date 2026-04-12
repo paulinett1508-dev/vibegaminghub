@@ -1,3 +1,14 @@
 {
-  "jogos": []
+  "jogos": [
+    {
+      "nome": "Super Mario World",
+      "arquivo": "Super Mario World (USA).smc",
+      "icone": "sports_esports"
+    },
+    {
+      "nome": "Street Fighter II",
+      "arquivo": "Street Fighter II (USA).smc",
+      "icone": "sports_martial_arts"
+    }
+  ]
 }
