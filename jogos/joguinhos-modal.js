@@ -118,6 +118,14 @@
             cor: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
             abrir: function () { if (window.SNESGame) window.SNESGame.abrir(); },
             fechar: function () { if (window.SNESGame) window.SNESGame.fechar(); }
+        },
+        {
+            id: 'solarsystem',
+            nome: 'Solar System',
+            icon: 'public',
+            cor: 'linear-gradient(135deg,#0f172a,#1e3a5f)',
+            abrir: function () { if (window.SolarSystemGame) window.SolarSystemGame.abrir(); },
+            fechar: function () { if (window.SolarSystemGame) window.SolarSystemGame.fechar(); }
         }
     ];
 
