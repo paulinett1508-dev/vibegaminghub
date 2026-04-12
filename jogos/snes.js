@@ -96,8 +96,9 @@
 
         document.body.appendChild(_overlay);
 
-        // Fetch ROM list
-        fetch(ROM_BASE + 'index.json')
+        // Fetch ROM list — no-cache garante que novas ROMs aparecam
+        // mesmo se o browser tiver uma listagem antiga em cache
+        fetch(ROM_BASE + 'index.json?t=' + Date.now(), { cache: 'no-cache' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 grid.innerHTML = '';
