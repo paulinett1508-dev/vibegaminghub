@@ -23,16 +23,20 @@
     var _scrollCooldown = false;
     var _touchStartX = 0;
 
+    // sizeVH: tamanho de exibição proporcional ao diâmetro real (escala cúbica, Saturn=80=max)
     var PLANETS = {
-        mercury: { title:'Mercury', description:'Tiny and close to the sun.',                                           tilt:3.13,  gravity:0.9, hours:10, img:'assets/sprites/solar-system/1_mercury.jpg' },
-        venus:   { title:'Venus',   description:'A planet of razors and tennis players.',                              tilt:4.13,  gravity:0.2, hours:20, img:'assets/sprites/solar-system/2_venus.jpg'   },
-        earth:   { title:'Earth',   description:'Voted best planet in the Solar System by all organisms.',             tilt:5.13,  gravity:7.3, hours:30, img:'assets/sprites/solar-system/3_earth.jpg'   },
-        mars:    { title:'Mars',    description:"Future Site of Elon Musk's AirBnB.",                                  tilt:6.13,  gravity:1.1, hours:40, img:'assets/sprites/solar-system/4_mars.jpg'    },
-        jupiter: { title:'Jupiter', description:'Twice as massive as the other planets combined.',                     tilt:11.13, gravity:1.8, hours:50, img:'assets/sprites/solar-system/5_jupiter.jpg' },
-        saturn:  { title:'Saturn',  description:'This planet sponsored by Zales.',                                    tilt:9.13,  gravity:7.3, hours:60, img:'assets/sprites/solar-system/6_saturn.jpg'  },
-        uranus:  { title:'Uranus',  description:"Hey, stop laughing. It's not funny.",                                tilt:11.13, gravity:1.8, hours:50, img:'assets/sprites/solar-system/7_uranus.jpg'  },
-        neptune: { title:'Neptune', description:"A planet for pirates; just narrowly made the cut.",                  tilt:31.03, gravity:8.9, hours:10, img:'assets/sprites/solar-system/8_neptune.jpg' }
+        mercury: { title:'Mercury', description:'Tiny and close to the sun.',                                           tilt:3.13,  gravity:0.9, hours:10, sizeVH:24, img:'assets/sprites/solar-system/1_mercury.jpg' },
+        venus:   { title:'Venus',   description:'A planet of razors and tennis players.',                              tilt:4.13,  gravity:0.2, hours:20, sizeVH:34, img:'assets/sprites/solar-system/2_venus.jpg'   },
+        earth:   { title:'Earth',   description:'Voted best planet in the Solar System by all organisms.',             tilt:5.13,  gravity:7.3, hours:30, sizeVH:35, img:'assets/sprites/solar-system/3_earth.jpg'   },
+        mars:    { title:'Mars',    description:"Future Site of Elon Musk's AirBnB.",                                  tilt:6.13,  gravity:1.1, hours:40, sizeVH:28, img:'assets/sprites/solar-system/4_mars.jpg'    },
+        jupiter: { title:'Jupiter', description:'Twice as massive as the other planets combined.',                     tilt:11.13, gravity:1.8, hours:50, sizeVH:78, img:'assets/sprites/solar-system/5_jupiter.jpg' },
+        saturn:  { title:'Saturn',  description:'This planet sponsored by Zales.',                                    tilt:9.13,  gravity:7.3, hours:60, sizeVH:80, img:'assets/sprites/solar-system/6_saturn.jpg'  },
+        uranus:  { title:'Uranus',  description:"Hey, stop laughing. It's not funny.",                                tilt:11.13, gravity:1.8, hours:50, sizeVH:55, img:'assets/sprites/solar-system/7_uranus.jpg'  },
+        neptune: { title:'Neptune', description:"A planet for pirates; just narrowly made the cut.",                  tilt:31.03, gravity:8.9, hours:10, sizeVH:54, img:'assets/sprites/solar-system/8_neptune.jpg' }
     };
+
+    // Base máxima da figura (Saturn = scale 1.0)
+    var SS_BASE_VH = 80;
 
     // ---- Helpers de animacao ----
 
@@ -178,7 +182,7 @@
             '.ss-planet{grid-column:1;grid-row:1/-1;overflow:hidden;height:100%;width:100%;display:grid;grid-template-columns:10% 40% 40% 10%;grid-template-rows:10% 1fr 1fr;grid-template-areas:"header header header header" "x title details y" "x planet photos photos";visibility:hidden;transition:visibility .01s linear var(--ss-duration);}',
             '.ss-planet[data-active]{visibility:visible;opacity:1;transition-delay:0s;}',
             '.ss-planet>.ss-planet-title{display:block;grid-area:title;}',
-            '.ss-planet>.ss-planet-figure{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(58vh,58vw);height:min(58vh,58vw);z-index:1;margin:0;padding:0;display:flex;align-items:center;justify-content:center;}',
+            '.ss-planet>.ss-planet-figure{position:absolute;top:50%;left:50%;width:min(80vh,90vw);height:min(80vh,90vw);transform:translate(-50%,-50%) scale(var(--ss-planet-scale,1));transform-origin:center center;z-index:1;margin:0;padding:0;display:flex;align-items:center;justify-content:center;transition:transform .7s cubic-bezier(.7,0,.3,1),opacity var(--ss-duration) var(--ss-ease);}',
             '.ss-planet>.ss-planet-figure img{width:100%;height:100%;object-fit:contain;max-width:none;}',
             '.ss-planet>.ss-planet-figure::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.7) 100%);z-index:2;pointer-events:none;}',
             '.ss-planet>.ss-planet-title{position:relative;z-index:5;}',
@@ -198,7 +202,7 @@
             '.ss-planet[data-active] .ss-planet-description{opacity:1;transform:translateY(0);visibility:visible;transition-delay:var(--ss-duration),var(--ss-duration),0s;}',
             '.ss-planet .ss-planet-details{visibility:hidden;}',
             '.ss-planet[data-active] .ss-planet-details{opacity:1;transform:translateY(0);visibility:visible;transition-delay:0s;}',
-            '.ss-planet .ss-planet-figure{opacity:0;transition:opacity var(--ss-duration) var(--ss-ease);}',
+            '.ss-planet .ss-planet-figure{opacity:0;transition:transform .7s cubic-bezier(.7,0,.3,1),opacity var(--ss-duration) var(--ss-ease);}',
             '.ss-planet[data-active] .ss-planet-figure{opacity:1;}',
             /* Arc carousel nav */
             '.ss-arc-nav{position:absolute;bottom:0;left:0;right:0;height:220px;pointer-events:none;overflow:visible;z-index:20;}',
@@ -230,6 +234,10 @@
         elPlanet.dataset.active = '';
         _currentPlanet = _getDetails(planetKey);
 
+        // Escala proporcional ao tamanho real do planeta
+        var scale = (PLANETS[planetKey].sizeVH / SS_BASE_VH).toFixed(4);
+        _root.style.setProperty('--ss-planet-scale', scale);
+
         var elHours = elPlanet.querySelector('[data-detail="hours"]');
         _animateFromTo(prev.hours, _currentPlanet.hours, function (v) { if (elHours) elHours.textContent = String(Math.round(v)); });
 
@@ -256,6 +264,9 @@
         if (!_root) return;
         _currentPlanetIndex = 0;
         _currentPlanet = _getDetails('mercury');
+
+        // Escala inicial (Mercury = menor)
+        _root.style.setProperty('--ss-planet-scale', (PLANETS['mercury'].sizeVH / SS_BASE_VH).toFixed(4));
 
         if (window.Splitting) {
             window.Splitting({ target:'#solar-system-root .ss-planet-title h1', by:'chars' });
