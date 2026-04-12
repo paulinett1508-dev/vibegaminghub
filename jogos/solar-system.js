@@ -110,26 +110,22 @@
         return wrap;
     }
 
-    function _buildFilmstrip() {
-        var nav = _el('nav', { class:'ss-filmstrip', 'aria-label':'Planet navigation' });
-        _planetKeys.forEach(function (k, i) {
-            var item = _el('span', { class:'ss-film-item', 'data-film-index': String(i), text: PLANETS[k].title });
-            nav.appendChild(item);
+    function _buildNav() {
+        var nav = _el('nav', { class:'ss-planet-nav' });
+        var svg = _svgEl('svg', { viewBox:'0 20 400 400', xmlns:'http://www.w3.org/2000/svg' });
+        var path = _svgEl('path', { id:'ss-navPath', d:'M10,200 C30,-28 370,-28 390,200', fill:'none' });
+        svg.appendChild(path);
+        var textEl = _svgEl('text', {});
+        var textPath = _svgEl('textPath', { href:'#ss-navPath', startOffset:'0', 'font-size':'10' });
+        _planetKeys.forEach(function (k) {
+            var tspan = _svgEl('tspan', {});
+            tspan.textContent = PLANETS[k].title;
+            textPath.appendChild(tspan);
         });
+        textEl.appendChild(textPath);
+        svg.appendChild(textEl);
+        nav.appendChild(svg);
         return nav;
-    }
-
-    function _updateFilmstrip(activeIndex) {
-        if (!_root) return;
-        var items = _root.querySelectorAll('.ss-film-item');
-        items.forEach(function (item, i) {
-            var dist = Math.abs(i - activeIndex);
-            item.className = 'ss-film-item' + (
-                dist === 0 ? ' ss-film-active' :
-                dist === 1 ? ' ss-film-near1' :
-                dist === 2 ? ' ss-film-near2' : ' ss-film-far'
-            );
-        });
     }
 
     function _buildCloseBtn() {
@@ -172,13 +168,14 @@
             '.ss-planet[data-active] .ss-planet-details{opacity:1;transform:translateY(0);visibility:visible;transition-delay:0s;}',
             '.ss-planet .ss-planet-figure{opacity:0;transition:opacity var(--ss-duration) var(--ss-ease);}',
             '.ss-planet[data-active] .ss-planet-figure{opacity:1;}',
-            /* Filmstrip nav */
-            '.ss-filmstrip{position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;align-items:flex-end;justify-content:center;gap:0;padding-bottom:18px;pointer-events:none;mask-image:linear-gradient(to right,transparent 0%,black 18%,black 82%,transparent 100%);}',
-            '.ss-film-item{pointer-events:auto;cursor:pointer;white-space:nowrap;font-family:"DM Sans",sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.12em;padding:4px 10px;transition:all var(--ss-duration) var(--ss-ease);user-select:none;}',
-            '.ss-film-active{font-size:1.35rem;opacity:1;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.9),0 0 40px rgba(160,200,255,.6);transform:translateY(-4px) scale(1.0);}',
-            '.ss-film-near1{font-size:.95rem;opacity:.55;color:#ccc;text-shadow:none;transform:translateY(0) scale(1);}',
-            '.ss-film-near2{font-size:.7rem;opacity:.3;color:#aaa;text-shadow:none;transform:translateY(2px) scale(1);}',
-            '.ss-film-far{font-size:.55rem;opacity:.15;color:#888;text-shadow:none;transform:translateY(3px) scale(1);}',
+            /* Arc nav */
+            '.ss-planet-nav{grid-column:1;grid-row:2;pointer-events:none;z-index:10;display:flex;position:absolute;left:0;right:0;bottom:0;}',
+            '.ss-planet-nav svg{display:block;width:auto;height:auto;min-width:100%;max-width:none;min-height:100vh;margin-bottom:-50%;transform-origin:center center;--ss-length:7;--ss-range:160deg;transform:rotate(calc((var(--ss-active,0)/var(--ss-length))*(-1*var(--ss-range))+(var(--ss-range)/2)));transition:transform var(--ss-duration) var(--ss-ease);}',
+            '@media(max-width:600px){.ss-planet-nav svg{margin-bottom:-55%;}}',
+            '.ss-planet-nav tspan{cursor:pointer;fill:#FFF;pointer-events:auto;opacity:0;transition:opacity var(--ss-duration) linear,font-size var(--ss-duration) var(--ss-ease),font-weight var(--ss-duration) linear;}',
+            '.ss-planet-nav tspan[x]{opacity:.6;}',
+            '.ss-planet-nav tspan:hover,.ss-planet-nav tspan:focus{opacity:1;}',
+            '.ss-planet-nav tspan.ss-nav-active{opacity:1!important;font-size:14px;font-weight:700;}',
             /* Rotacao: prograde (anti-horário) e retrógrado (horário) */
             '@keyframes ss-spin-ccw{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}',
             '@keyframes ss-spin-cw{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
@@ -217,7 +214,13 @@
 
     function _selectByIndex(i) {
         _currentPlanetIndex = i;
-        _updateFilmstrip(i);
+        var svg = _root && _root.querySelector('.ss-planet-nav svg');
+        if (svg) svg.style.setProperty('--ss-active', i);
+        // Destacar tspan ativo
+        var tspans = _root ? _root.querySelectorAll('tspan') : [];
+        tspans.forEach(function (t, idx) {
+            t.classList.toggle('ss-nav-active', idx === i);
+        });
         _selectPlanet(_planetKeys[i]);
     }
 
@@ -236,19 +239,32 @@
             window.Splitting({ target:'#solar-system-root .ss-planet-title h1', by:'chars' });
         }
 
-        // Inicializar filmstrip com estado correto
-        _updateFilmstrip(0);
-
-        // Cliques nos nomes do filmstrip
-        var filmItems = _root.querySelectorAll('.ss-film-item');
-        filmItems.forEach(function (item, i) {
-            item.addEventListener('click', function () {
-                if (_scrollCooldown) return;
-                _scrollCooldown = true;
-                setTimeout(function () { _scrollCooldown = false; }, 850);
-                _selectByIndex(i);
+        // Setup do arco SVG
+        var elNavPath = _root.querySelector('#ss-navPath');
+        var elTspans = Array.from(_root.querySelectorAll('tspan'));
+        var length = elTspans.length - 1;
+        var svg = _root.querySelector('.ss-planet-nav svg');
+        if (svg) {
+            svg.style.setProperty('--ss-length', length);
+            svg.style.setProperty('--ss-active', 0);
+        }
+        if (elNavPath && elTspans.length > 0) {
+            var navPathLength = elNavPath.getTotalLength();
+            var lastLen = elTspans[length].getComputedTextLength ? elTspans[length].getComputedTextLength() : 0;
+            navPathLength -= lastLen;
+            elTspans.forEach(function (tspan, i) {
+                tspan.setAttribute('x', (i / length) * navPathLength);
+                tspan.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    if (_scrollCooldown) return;
+                    _scrollCooldown = true;
+                    setTimeout(function () { _scrollCooldown = false; }, 850);
+                    _selectByIndex(i);
+                });
             });
-        });
+        }
+        // Marcar o primeiro como ativo
+        if (elTspans[0]) elTspans[0].classList.add('ss-nav-active');
 
         var closeBtn = _root.querySelector('.ss-close-btn');
         if (closeBtn) {
@@ -326,7 +342,7 @@
             appDiv.dataset.currentPlanet = 'mercury';
 
             appDiv.appendChild(_buildCloseBtn());
-            appDiv.appendChild(_buildFilmstrip());
+            appDiv.appendChild(_buildNav());
             _planetKeys.forEach(function (k, i) {
                 appDiv.appendChild(_buildPlanetEl(k, i === 0));
             });
