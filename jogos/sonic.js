@@ -391,10 +391,38 @@
 
     var overlay, canvas, ctx, W, H, GY;
     var animFrame = null, ac = null;
-    var _kh = null, _th = null, _rh = null;
+    var _kh = null, _rh = null;
     var inputJump = false, inputSD = false, inputJumpHeld = false;
-    var sdBtnEl = null;
+    var sdBtnEl = null, jumpBtnEl = null;
+    var rotateHintEl = null;
+    var orientationLocked = false;
     var S;
+
+    // ---- Orientation (mesma logica de snes.js/donkeykong.js) ----
+    function tryLockLandscape() {
+        if (orientationLocked) return;
+        try {
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                var p = screen.orientation.lock('landscape');
+                if (p && typeof p.then === 'function') {
+                    p.then(function () { orientationLocked = true; })
+                     .catch(function () { /* fallback vira hint */ });
+                }
+            }
+        } catch (e) { /* ignora */ }
+    }
+    function unlockOrientation() {
+        try {
+            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+            }
+        } catch (e) { /* ignora */ }
+        orientationLocked = false;
+    }
+    function updateRotateHint() {
+        if (!rotateHintEl) return;
+        rotateHintEl.style.display = (window.innerHeight > window.innerWidth) ? 'flex' : 'none';
+    }
 
     function initState() {
         GY = H * 0.62;
@@ -934,32 +962,55 @@
         };
         window.addEventListener('keydown',_kh); window.addEventListener('keyup',_ku); _kh._up=_ku;
 
-        _th = function(e){e.preventDefault();for(var i=0;i<e.changedTouches.length;i++){if(e.changedTouches[i].clientX>W*0.5){inputJump=true;inputJumpHeld=true;}}};
-        var _te = function(e){inputJumpHeld=false;};
-        canvas.addEventListener('touchend',_te,{passive:false});
-        canvas.addEventListener('touchstart',_th,{passive:false});
-        canvas.addEventListener('click',function(e){if(e.clientX>W*0.5)inputJump=true;});
-
-        _rh = function(){W=window.innerWidth;H=window.innerHeight;GY=H*0.62;canvas.width=W;canvas.height=H;S.x=W*0.22;if(S.y>GY)S.y=GY;};
+        _rh = function(){
+            W=window.innerWidth;H=window.innerHeight;GY=H*0.62;
+            canvas.width=W;canvas.height=H;
+            S.x=W*0.22;if(S.y>GY)S.y=GY;
+            updateRotateHint();
+        };
         window.addEventListener('resize',_rh);
+        window.addEventListener('orientationchange',_rh);
     }
 
     function removeInput() {
         if(_kh){window.removeEventListener('keydown',_kh);if(_kh._up)window.removeEventListener('keyup',_kh._up);_kh=null;}
-        if(_th&&canvas){canvas.removeEventListener('touchstart',_th);_th=null;}
-        if(_rh){window.removeEventListener('resize',_rh);_rh=null;}
+        if(_rh){window.removeEventListener('resize',_rh);window.removeEventListener('orientationchange',_rh);_rh=null;}
         if(sdBtnEl){sdBtnEl.remove();sdBtnEl=null;}
+        if(jumpBtnEl){jumpBtnEl.remove();jumpBtnEl=null;}
+        if(rotateHintEl){rotateHintEl.remove();rotateHintEl=null;}
     }
 
     function createSDBtn() {
         sdBtnEl = document.createElement('button');
-        sdBtnEl.style.cssText=['position:fixed','bottom:28px','left:28px','z-index:9100','width:72px','height:72px','border-radius:50%','background:linear-gradient(135deg,#C02020,#801010)','border:3px solid #FFE040','color:#FFE040','font-family:"Russo One",sans-serif','font-size:11px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none'].join(';');
-        sdBtnEl.innerHTML='<span style="font-size:22px;">&#9654;</span><span style="font-size:9px;margin-top:2px;">SPIN</span>';
-        sdBtnEl.addEventListener('touchstart',function(e){e.preventDefault();inputSD=true;initAC();},{passive:false});
-        sdBtnEl.addEventListener('touchend',function(e){e.preventDefault();inputSD=false;},{passive:false});
-        sdBtnEl.addEventListener('mousedown',function(){inputSD=true;initAC();});
-        sdBtnEl.addEventListener('mouseup',function(){inputSD=false;});
+        sdBtnEl.style.cssText=['position:fixed','top:50%','left:24px','transform:translateY(-50%)','z-index:9100','width:92px','height:92px','border-radius:50%','background:linear-gradient(135deg,#C02020,#801010)','border:3px solid #FFE040','color:#FFE040','font-family:"Russo One",sans-serif','font-size:12px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 18px rgba(192,32,32,.5)'].join(';');
+        sdBtnEl.innerHTML='<span style="font-size:28px;line-height:1;">&#9654;</span><span style="font-size:10px;margin-top:3px;letter-spacing:1px;">SPIN</span>';
+        var down=function(e){if(e)e.preventDefault();inputSD=true;initAC();sdBtnEl.style.opacity='0.75';sdBtnEl.style.transform='translateY(-50%) scale(0.93)';};
+        var up=function(e){if(e)e.preventDefault();inputSD=false;sdBtnEl.style.opacity='';sdBtnEl.style.transform='translateY(-50%)';};
+        sdBtnEl.addEventListener('pointerdown',down);
+        sdBtnEl.addEventListener('pointerup',up);
+        sdBtnEl.addEventListener('pointerleave',up);
+        sdBtnEl.addEventListener('pointercancel',up);
         overlay.appendChild(sdBtnEl);
+    }
+
+    function createJumpBtn() {
+        jumpBtnEl = document.createElement('button');
+        jumpBtnEl.style.cssText=['position:fixed','top:50%','right:24px','transform:translateY(-50%)','z-index:9100','width:110px','height:110px','border-radius:50%','background:linear-gradient(135deg,#F8B800,#C07000)','border:3px solid #FFE040','color:#fff','font-family:"Russo One",sans-serif','font-size:16px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 22px rgba(248,184,0,.55)','letter-spacing:1px'].join(';');
+        jumpBtnEl.innerHTML='<span class="material-icons" style="font-size:40px;pointer-events:none;">arrow_upward</span><span style="font-size:12px;margin-top:2px;pointer-events:none;">JUMP</span>';
+        var down=function(e){if(e)e.preventDefault();inputJump=true;inputJumpHeld=true;initAC();jumpBtnEl.style.opacity='0.75';jumpBtnEl.style.transform='translateY(-50%) scale(0.93)';};
+        var up=function(e){if(e)e.preventDefault();inputJumpHeld=false;jumpBtnEl.style.opacity='';jumpBtnEl.style.transform='translateY(-50%)';};
+        jumpBtnEl.addEventListener('pointerdown',down);
+        jumpBtnEl.addEventListener('pointerup',up);
+        jumpBtnEl.addEventListener('pointerleave',up);
+        jumpBtnEl.addEventListener('pointercancel',up);
+        overlay.appendChild(jumpBtnEl);
+    }
+
+    function createRotateHint() {
+        rotateHintEl = document.createElement('div');
+        rotateHintEl.style.cssText=['position:fixed','inset:0','background:rgba(15,23,42,0.95)','display:none','flex-direction:column','align-items:center','justify-content:center','gap:16px','color:#f1f5f9','font-family:"Russo One",sans-serif','z-index:9300','pointer-events:none'].join(';');
+        rotateHintEl.innerHTML='<span class="material-icons" style="font-size:64px;color:#F8B800;">screen_rotation</span><div style="font-size:1.1rem;letter-spacing:1px;">Gire o celular</div>';
+        overlay.appendChild(rotateHintEl);
     }
 
     // ================================================================
@@ -994,6 +1045,10 @@
             initGifs();    // carrega GIFs animados (run + jump)
             initAssets();  // carrega fundo.png + eggman.gif
             createSDBtn();
+            createJumpBtn();
+            createRotateHint();
+            tryLockLandscape();
+            updateRotateHint();
             setupInput();
             gameLoop();
         },
@@ -1001,6 +1056,7 @@
         fechar: function () {
             if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
             removeInput();
+            unlockOrientation();
             if (ac) { ac.close().catch(function(){}); ac = null; }
             if (overlay) { overlay.remove(); overlay = null; canvas = null; ctx = null; }
         },

@@ -20,6 +20,12 @@
     var _onKey         = null;
     var _iframe        = null;
     var _resizeHandler = null;
+    var _rotateHint    = null;
+    var _orientationLocked = false;
+
+    // Contador de refs por direcao — D-pad e analogico podem
+    // pressionar a mesma direcao; so soltamos quando todos liberarem
+    var _pressCount = { 4: 0, 5: 0, 6: 0, 7: 0 };
 
     // ---- ROM Picker ----
 
@@ -197,29 +203,49 @@
         }
     }
 
-    // Rotaciona o overlay 90 graus quando o dispositivo esta em portrait,
-    // para que o layout PSP (landscape) fique correto na tela
-    function _applyLandscape() {
-        if (!_overlay) return;
-        if (window.innerHeight > window.innerWidth) {
-            Object.assign(_overlay.style, {
-                inset: 'auto',
-                width: '100vh',
-                height: '100vw',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%) rotate(90deg)',
-            });
-        } else {
-            Object.assign(_overlay.style, {
-                inset: '0',
-                width: '100%',
-                height: '100%',
-                top: '',
-                left: '',
-                transform: '',
-            });
-        }
+    // Press/release com contador: multiplas fontes (D-pad + analogico)
+    // podem ativar a mesma direcao sem conflito
+    function _press(id) {
+        if (!(id in _pressCount)) { _sim(id, 1); return; }
+        _pressCount[id] += 1;
+        if (_pressCount[id] === 1) _sim(id, 1);
+    }
+    function _release(id) {
+        if (!(id in _pressCount)) { _sim(id, 0); return; }
+        if (_pressCount[id] <= 0) return;
+        _pressCount[id] -= 1;
+        if (_pressCount[id] === 0) _sim(id, 0);
+    }
+
+    // Tenta bloquear a orientacao em landscape.
+    // Quando o lock falha (browser nao permite fora de fullscreen),
+    // mostra hint "gire o celular" enquanto innerHeight > innerWidth.
+    function _tryLockLandscape() {
+        if (_orientationLocked) return;
+        try {
+            if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                var p = screen.orientation.lock('landscape');
+                if (p && typeof p.then === 'function') {
+                    p.then(function () { _orientationLocked = true; })
+                     .catch(function () { /* silencioso — fallback vira hint */ });
+                }
+            }
+        } catch (e) { /* ignora — fallback vira hint */ }
+    }
+
+    function _unlockOrientation() {
+        try {
+            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+                screen.orientation.unlock();
+            }
+        } catch (e) { /* ignora */ }
+        _orientationLocked = false;
+    }
+
+    function _updateRotateHint() {
+        if (!_overlay || !_rotateHint) return;
+        var portrait = window.innerHeight > window.innerWidth;
+        _rotateHint.style.display = portrait ? 'flex' : 'none';
     }
 
     // Cria botao circular colorido (usado nos botoes YXAB)
@@ -272,6 +298,7 @@
             WebkitTapHighlightColor: 'transparent',
             userSelect: 'none',
             WebkitUserSelect: 'none',
+            flexShrink: '0',
         });
         btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(btnId, 1); btn.style.background = 'rgba(100,100,150,0.9)'; });
         btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.9)'; });
@@ -299,6 +326,7 @@
             WebkitTapHighlightColor: 'transparent',
             userSelect: 'none',
             WebkitUserSelect: 'none',
+            flexShrink: '0',
         });
         btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(btnId, 1); btn.style.background = 'rgba(100,100,150,0.85)'; });
         btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(btnId, 0); btn.style.background = 'rgba(50,50,70,0.85)'; });
@@ -315,6 +343,7 @@
             gridTemplateColumns: 'repeat(3, 36px)',
             gridTemplateRows: 'repeat(3, 36px)',
             gap: '2px',
+            flexShrink: '0',
         });
         var dirs = [
             { row: 1, col: 2, text: '\u25b2', id: 4 },   // Up
@@ -343,10 +372,25 @@
                 WebkitUserSelect: 'none',
             });
             var id = d.id;
-            btn.addEventListener('pointerdown',   function (e) { e.preventDefault(); _sim(id, 1); btn.style.background = 'rgba(100,100,140,0.9)'; });
-            btn.addEventListener('pointerup',     function (e) { e.preventDefault(); _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
-            btn.addEventListener('pointerleave',  function ()  { _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
-            btn.addEventListener('pointercancel', function ()  { _sim(id, 0); btn.style.background = 'rgba(60,60,80,0.9)'; });
+            var pressed = false;
+            var down = function (e) {
+                if (e) e.preventDefault();
+                if (pressed) return;
+                pressed = true;
+                _press(id);
+                btn.style.background = 'rgba(100,100,140,0.9)';
+            };
+            var up = function (e) {
+                if (e) e.preventDefault();
+                if (!pressed) return;
+                pressed = false;
+                _release(id);
+                btn.style.background = 'rgba(60,60,80,0.9)';
+            };
+            btn.addEventListener('pointerdown',   down);
+            btn.addEventListener('pointerup',     up);
+            btn.addEventListener('pointerleave',  up);
+            btn.addEventListener('pointercancel', up);
             wrap.appendChild(btn);
         });
         // Centro inativo do d-pad
@@ -354,6 +398,116 @@
         Object.assign(center.style, { gridRow: '2', gridColumn: '2', background: 'rgba(40,40,60,0.9)', borderRadius: '4px' });
         wrap.appendChild(center);
         return wrap;
+    }
+
+    // Analogico virtual arrastavel — alternativa ao D-pad.
+    // Mapeia deslocamento do handle para direcoes SNES via deadzone.
+    function _makeAnalog() {
+        var RADIUS = 40;        // deslocamento maximo do handle (px)
+        var DEADZONE = 0.35;    // 35% do raio
+
+        var base = document.createElement('div');
+        Object.assign(base.style, {
+            position: 'relative',
+            width: '88px',
+            height: '88px',
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 35% 35%, rgba(80,80,110,0.9), rgba(30,30,50,0.95))',
+            border: '2px solid rgba(255,255,255,0.18)',
+            boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.6)',
+            touchAction: 'none',
+            WebkitTapHighlightColor: 'transparent',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            flexShrink: '0',
+            cursor: 'pointer',
+        });
+
+        var handle = document.createElement('div');
+        Object.assign(handle.style, {
+            position: 'absolute',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'linear-gradient(145deg, #a78bfa, #7c3aed)',
+            border: '2px solid rgba(255,255,255,0.3)',
+            boxShadow: '0 3px 8px rgba(0,0,0,0.5)',
+            pointerEvents: 'none',
+        });
+        base.appendChild(handle);
+
+        // Estado de cada direcao (edge-triggered)
+        var active = { 4: false, 5: false, 6: false, 7: false };
+
+        function updateDir(id, on) {
+            if (active[id] === on) return;
+            active[id] = on;
+            if (on) _press(id); else _release(id);
+        }
+
+        function releaseAll() {
+            updateDir(4, false);
+            updateDir(5, false);
+            updateDir(6, false);
+            updateDir(7, false);
+        }
+
+        function moveHandle(dx, dy) {
+            handle.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+        }
+
+        function onMove(e) {
+            var rect = base.getBoundingClientRect();
+            var cx = rect.left + rect.width / 2;
+            var cy = rect.top + rect.height / 2;
+            var dx = e.clientX - cx;
+            var dy = e.clientY - cy;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > RADIUS) {
+                dx = dx * RADIUS / dist;
+                dy = dy * RADIUS / dist;
+            }
+            moveHandle(dx, dy);
+
+            var t = RADIUS * DEADZONE;
+            updateDir(4, dy < -t);  // Up
+            updateDir(5, dy >  t);  // Down
+            updateDir(6, dx < -t);  // Left
+            updateDir(7, dx >  t);  // Right
+        }
+
+        function reset() {
+            moveHandle(0, 0);
+            releaseAll();
+        }
+
+        base.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            try { base.setPointerCapture(e.pointerId); } catch (err) {}
+            onMove(e);
+        });
+        base.addEventListener('pointermove', function (e) {
+            if (e.buttons === 0 && e.pointerType === 'mouse') return;
+            // so processa quando tem captura (ou toque)
+            if (base.hasPointerCapture && !base.hasPointerCapture(e.pointerId)) return;
+            e.preventDefault();
+            onMove(e);
+        });
+        base.addEventListener('pointerup', function (e) {
+            e.preventDefault();
+            try { base.releasePointerCapture(e.pointerId); } catch (err) {}
+            reset();
+        });
+        base.addEventListener('pointercancel', function () { reset(); });
+        base.addEventListener('pointerleave',  function (e) {
+            // Se nao temos captura, significa que saiu — solta
+            if (base.hasPointerCapture && !base.hasPointerCapture(e.pointerId)) reset();
+        });
+
+        return base;
     }
 
     // Diamante YXAB em posicionamento absoluto dentro de container 110x110
@@ -385,6 +539,7 @@
         _overlay.id = 'snes-overlay';
         Object.assign(_overlay.style, {
             position: 'fixed',
+            inset: '0',
             background: '#111',
             zIndex: '9000',
             display: 'flex',
@@ -404,18 +559,21 @@
             alignItems: 'center',
         });
 
-        // --- Painel esquerdo: L + D-pad + SELECT ---
+        // --- Painel esquerdo: L + D-pad + Analog + SELECT ---
         var leftPanel = document.createElement('div');
         Object.assign(leftPanel.style, {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'center',
+            gap: '8px',
             height: '100%',
-            padding: '12px 8px',
+            padding: '10px 8px',
+            overflow: 'hidden',
         });
         leftPanel.appendChild(_makeShoulderBtn('L', 10));
         leftPanel.appendChild(_makeDpad());
+        leftPanel.appendChild(_makeAnalog());
         leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
 
         // --- Painel central: iframe + botao fechar ---
@@ -510,9 +668,11 @@
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'center',
+            gap: '10px',
             height: '100%',
-            padding: '12px 8px',
+            padding: '10px 8px',
+            overflow: 'hidden',
         });
         rightPanel.appendChild(_makeShoulderBtn('R', 11));
         rightPanel.appendChild(_makeDiamond());
@@ -522,10 +682,39 @@
         psp.appendChild(centerPanel);
         psp.appendChild(rightPanel);
         _overlay.appendChild(psp);
+
+        // Hint de rotacao (mostrado quando portrait e lock falhou)
+        _rotateHint = document.createElement('div');
+        Object.assign(_rotateHint.style, {
+            position: 'absolute',
+            inset: '0',
+            background: 'rgba(15,23,42,0.95)',
+            display: 'none',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px',
+            color: '#f1f5f9',
+            fontFamily: "'Russo One', sans-serif",
+            zIndex: '20',
+            pointerEvents: 'none',
+        });
+        var hintIcon = document.createElement('span');
+        hintIcon.className = 'material-icons';
+        hintIcon.textContent = 'screen_rotation';
+        Object.assign(hintIcon.style, { fontSize: '64px', color: '#a78bfa' });
+        var hintText = document.createElement('div');
+        hintText.textContent = 'Gire o celular';
+        Object.assign(hintText.style, { fontSize: '1.1rem', letterSpacing: '1px' });
+        _rotateHint.appendChild(hintIcon);
+        _rotateHint.appendChild(hintText);
+        _overlay.appendChild(_rotateHint);
+
         document.body.appendChild(_overlay);
 
-        _applyLandscape();
-        _resizeHandler = _applyLandscape;
+        _tryLockLandscape();
+        _updateRotateHint();
+        _resizeHandler = function () { _updateRotateHint(); };
         window.addEventListener('resize', _resizeHandler);
         window.addEventListener('orientationchange', _resizeHandler);
 
@@ -552,8 +741,11 @@
                 window.removeEventListener('orientationchange', _resizeHandler);
                 _resizeHandler = null;
             }
+            _unlockOrientation();
             if (_overlay) { _overlay.remove(); _overlay = null; }
+            _rotateHint = null;
             _iframe = null;
+            _pressCount = { 4: 0, 5: 0, 6: 0, 7: 0 };
         },
     };
 
