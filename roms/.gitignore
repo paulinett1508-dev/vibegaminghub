@@ -4,5 +4,10 @@
 *.gen
 *.smd
 
+# ROMs de SNES (propriedade Nintendo, nao versionar)
+*.smc
+*.sfc
+*.fig
+
 # Manter estrutura de pastas
 !.gitkeep
