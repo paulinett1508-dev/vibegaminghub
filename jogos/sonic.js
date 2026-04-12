@@ -391,7 +391,7 @@
 
     var overlay, canvas, ctx, W, H, GY;
     var animFrame = null, ac = null;
-    var _kh = null, _th = null, _rh = null;
+    var _kh = null, _rh = null;
     var inputJump = false, inputSD = false, inputJumpHeld = false;
     var sdBtnEl = null, jumpBtnEl = null;
     var rotateHintEl = null;
@@ -974,7 +974,6 @@
 
     function removeInput() {
         if(_kh){window.removeEventListener('keydown',_kh);if(_kh._up)window.removeEventListener('keyup',_kh._up);_kh=null;}
-        if(_th&&canvas){canvas.removeEventListener('touchstart',_th);_th=null;}
         if(_rh){window.removeEventListener('resize',_rh);window.removeEventListener('orientationchange',_rh);_rh=null;}
         if(sdBtnEl){sdBtnEl.remove();sdBtnEl=null;}
         if(jumpBtnEl){jumpBtnEl.remove();jumpBtnEl=null;}

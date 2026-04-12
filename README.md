@@ -54,6 +54,41 @@ Emulador de Mega Drive rodando Sonic the Hedgehog via EmulatorJS.
 - **Controles:** Teclado (setas + Z/X/C) ou gamepad fisico
 - **Escalavel:** `window.MegadriveGame.abrir('roms/megadrive/outro-jogo.md')` para novos ROMs
 
+### Sonic Runner (Canvas)
+Runner custom com Sonic pixel-art, fisica Retro Engine e spin dash.
+
+- **Canvas fullscreen** com parallax (ceu, morros, grama) e rings coletaveis
+- **Layout landscape** — `screen.orientation.lock('landscape')` + hint "Gire o celular" no fallback
+- **Controles laterais:** botao SPIN (esquerda) e JUMP (direita) + teclado (Espaco/Setas/Z)
+- **Sprites:** PNG em `assets/sprites/sonic/` ou gerados proceduralmente em offscreen canvas
+
+### SNES
+Emulador Super Nintendo via EmulatorJS com picker de ROMs e layout PSP.
+
+- **Core:** `snes9x` (RetroArch/WASM) via CDN EmulatorJS
+- **ROMs:** listadas em `roms/snes/index.json` — Super Mario World, Street Fighter II etc.
+- **Layout PSP landscape** (ver [`docs/CONTROLES.md`](docs/CONTROLES.md)):
+  - Esquerda: L + D-pad + analogico virtual + SELECT
+  - Direita: R + diamante ABXY + START
+- **Analogico** arrastavel com deadzone — alternativa ao D-pad, ambos ativos simultaneamente
+- **Orientation lock** em landscape; hint "Gire o celular" quando browser nao permite lock
+
+### Donkey Kong (Atari 7800)
+Emulador Atari 7800 via EmulatorJS rodando Donkey Kong (1988).
+
+- **Core:** `prosystem` (RetroArch/WASM) via CDN EmulatorJS
+- **ROM:** `assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78`
+- **Layout PSP landscape** (mesmo padrao do SNES):
+  - Esquerda: D-pad + SELECT
+  - Direita: FIRE (grande, laranja DK) + PAUSE
+
+### Padrao de Controles Landscape
+Os jogos SNES, Donkey Kong e Sonic Runner compartilham o padrao documentado em
+[`docs/CONTROLES.md`](docs/CONTROLES.md):
+Screen Orientation API + hint de rotacao + pointer events unificados +
+contador de pressoes `_press`/`_release` para evitar conflito quando multiplas
+fontes ativam a mesma direcao.
+
 ## Como Usar
 
 ### Demo rapida
@@ -106,6 +141,18 @@ window.TamanduaGame.fechar();
 window.MegadriveGame.abrir();                             // carrega sonic.md por padrao
 window.MegadriveGame.abrir('roms/megadrive/outro.md');    // ROM customizado
 window.MegadriveGame.fechar();
+
+// Sonic Runner custom (canvas fullscreen)
+window.SonicGame.abrir();
+window.SonicGame.fechar();
+
+// SNES (picker de ROMs em roms/snes/index.json)
+window.SNESGame.abrir();
+window.SNESGame.fechar();
+
+// Donkey Kong (Atari 7800)
+window.DonkeyKongGame.abrir();
+window.DonkeyKongGame.fechar();
 ```
 
 ## Estrutura
@@ -121,6 +168,8 @@ jogos/
   tamandua.js           # Jogo Tamandua Runner standalone (IK procedural)
   sonic.js              # Sonic Runner custom (canvas procedural, assets GIF)
   megadrive.js          # Emulador Mega Drive via EmulatorJS CDN
+  snes.js               # Emulador SNES via EmulatorJS (picker de ROMs)
+  donkeykong.js         # Donkey Kong Atari 7800 via EmulatorJS
   joguinhos-modal.js    # Modal de selecao de jogos
 assets/
   sons/                 # Futuros arquivos de audio
@@ -129,6 +178,7 @@ roms/
   megadrive/            # ROMs de Mega Drive (nao inclusos no repo)
 docs/
   ORIGEM.md             # Referencia de onde cada codigo veio
+  CONTROLES.md          # Padrao de controles landscape PSP
 ```
 
 ## Origem
