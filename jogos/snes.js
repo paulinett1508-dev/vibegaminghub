@@ -492,11 +492,13 @@
     function _makeDiamond() {
         var wrap = document.createElement('div');
         Object.assign(wrap.style, { position: 'relative', width: '110px', height: '110px' });
+        // Posicionamento via calc() — sem transform — para nao conflitar
+        // com o scale(0.9) que _makeBtn aplica no pointerdown
         var defs = [
-            { text: 'X', id: 9, color: 'linear-gradient(145deg,#eab308,#a16207)', pos: { top: '0',    left: '50%',  transform: 'translateX(-50%)' } },
-            { text: 'Y', id: 1, color: 'linear-gradient(145deg,#10b981,#047857)', pos: { top: '50%',  left: '0',    transform: 'translateY(-50%)' } },
-            { text: 'A', id: 8, color: 'linear-gradient(145deg,#ef4444,#b91c1c)', pos: { top: '50%',  right: '0',   transform: 'translateY(-50%)' } },
-            { text: 'B', id: 0, color: 'linear-gradient(145deg,#3b82f6,#1d4ed8)', pos: { bottom: '0', left: '50%',  transform: 'translateX(-50%)' } },
+            { text: 'X', id: 9, color: 'linear-gradient(145deg,#eab308,#a16207)', pos: { top: '0',              left: 'calc(50% - 21px)' } },
+            { text: 'Y', id: 1, color: 'linear-gradient(145deg,#10b981,#047857)', pos: { top: 'calc(50% - 21px)', left: '0'               } },
+            { text: 'A', id: 8, color: 'linear-gradient(145deg,#ef4444,#b91c1c)', pos: { top: 'calc(50% - 21px)', right: '0'              } },
+            { text: 'B', id: 0, color: 'linear-gradient(145deg,#3b82f6,#1d4ed8)', pos: { bottom: '0',            left: 'calc(50% - 21px)' } },
         ];
         defs.forEach(function (def) {
             var btn = _makeBtn(def.text, def.color, 42,
