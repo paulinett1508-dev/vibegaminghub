@@ -1,18 +1,9 @@
 // =====================================================================
 // megadrive.js — Emulador Mega Drive via EmulatorJS (CDN)
 // =====================================================================
-// Usa genesis_plus_gx (RetroArch/WASM) carregado dinamicamente.
-// ROMs ficam em /roms/megadrive/  (ex: Sonic The Hedgehog 2 (World) (Rev A).md)
-//
-// Arquitetura: iframe srcdoc fullscreen — EJS gerencia canvas + gamepad.
-//
-// Gamepad: D-pad + B (76px/azul/principal) + A (52px/vermelho/sec) + Start
-// - B e A usam location:'right' (EJS exige location para aceitar o config)
-// - MutationObserver move B e A para .ejs_virtualGamepad_parent via DOM
-//   e os posiciona absolutamente — separados sem sobreposicao
-// - EJS mantem os event listeners nos elementos apos mover no DOM
-//
-// Sair: posicao calculada pelo aspect ratio genesis (320:224) no parent
+// Controles externos (fora do iframe) — igual ao SNES:
+// Landscape: painel esquerdo (D-pad) + iframe central + painel direito (A/B/C/START)
+// Portrait:  iframe superior + painel inferior (D-pad + A/B/C + START)
 // =====================================================================
 
 (function () {
@@ -21,16 +12,222 @@
     var ROM_DEFAULT = 'roms/megadrive/Sonic The Hedgehog 2 (World) (Rev A).md';
     var EJS_CDN     = 'https://cdn.emulatorjs.org/stable/data/';
 
-    // Aspect ratio genesis: canvas height = screenWidth / (320/224)
-    // Calcula onde o canvas termina na tela (em vh) para alinhar controles
-    function _genesisCanvasVh() {
-        var canvasH = window.innerWidth / (320 / 224);
-        var pct = Math.round((canvasH / window.innerHeight) * 100);
-        return Math.max(25, Math.min(42, pct)); // clamp: 25-42vh
-    }
+    // RetroPad indices para genesis_plus_gx
+    var BTN = { B:0, A:1, START:3, UP:4, DOWN:5, LEFT:6, RIGHT:7, C:8 };
+
+    var PANEL_L = 130, PANEL_R = 150, PANEL_B = 180;
 
     var _overlay = null;
+    var _iframe  = null;
+    var _lcPanel = null;
+    var _rcPanel = null;
+    var _pcPanel = null;
+    var _rh      = null;
     var _onKey   = null;
+
+    function _simulateInput(btnId, val) {
+        try {
+            var emu = _iframe && _iframe.contentWindow && _iframe.contentWindow.EJS_emulator;
+            if (emu && emu.gameManager) emu.gameManager.simulateInput(1, btnId, val);
+        } catch (e) {}
+    }
+
+    // ── Botao redondo estilo Mega Drive ──────────────────────────────
+    function _makeBtn(label, size, bg, shadow, bId) {
+        var btn = document.createElement('button');
+        btn.style.cssText = [
+            'width:'+size+'px', 'height:'+size+'px',
+            'border-radius:50%', 'background:'+bg,
+            'border:3px solid rgba(255,255,255,0.18)',
+            'color:#fff', 'font-family:"Russo One",sans-serif',
+            'font-size:'+Math.round(size*0.28)+'px', 'font-weight:700',
+            'cursor:pointer', 'display:flex', 'align-items:center', 'justify-content:center',
+            '-webkit-tap-highlight-color:transparent',
+            'user-select:none', 'touch-action:none',
+            'box-shadow:'+shadow, 'flex-shrink:0', 'letter-spacing:1px',
+        ].join(';');
+        var sp = document.createElement('span');
+        sp.textContent = label; sp.style.pointerEvents = 'none';
+        btn.appendChild(sp);
+        var dn = function(e){e.preventDefault();_simulateInput(bId,1);btn.style.opacity='0.72';btn.style.transform='scale(0.90)';};
+        var up = function(e){e.preventDefault();_simulateInput(bId,0);btn.style.opacity='';btn.style.transform='';};
+        btn.addEventListener('pointerdown',dn);
+        btn.addEventListener('pointerup',up);
+        btn.addEventListener('pointerleave',up);
+        btn.addEventListener('pointercancel',up);
+        return btn;
+    }
+
+    function _makeStartPill() {
+        var btn = document.createElement('button');
+        btn.style.cssText = [
+            'background:#1a2535', 'border:2px solid #3a4555',
+            'color:#7a8a9a', 'border-radius:4px', 'padding:7px 14px',
+            'font-family:"Russo One",sans-serif', 'font-size:10px',
+            'letter-spacing:2px', 'cursor:pointer', 'flex-shrink:0',
+            '-webkit-tap-highlight-color:transparent',
+            'user-select:none', 'touch-action:none',
+        ].join(';');
+        var sp = document.createElement('span');
+        sp.textContent = 'START'; sp.style.pointerEvents = 'none';
+        btn.appendChild(sp);
+        var dn = function(e){e.preventDefault();_simulateInput(BTN.START,1);btn.style.opacity='0.72';};
+        var up = function(e){e.preventDefault();_simulateInput(BTN.START,0);btn.style.opacity='';};
+        btn.addEventListener('pointerdown',dn);
+        btn.addEventListener('pointerup',up);
+        btn.addEventListener('pointerleave',up);
+        btn.addEventListener('pointercancel',up);
+        return btn;
+    }
+
+    function _makeDpad(sz) {
+        var bs = Math.round(sz * 0.33);
+        var half = Math.round(bs / 2);
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:relative;width:'+sz+'px;height:'+sz+'px;flex-shrink:0;';
+        var dirs = [
+            {ch:'▲', dir:BTN.UP,    top:'0',                  left:'calc(50% - '+half+'px)'},
+            {ch:'▼', dir:BTN.DOWN,  bottom:'0',               left:'calc(50% - '+half+'px)'},
+            {ch:'◀', dir:BTN.LEFT,  top:'calc(50% - '+half+'px)', left:'0'},
+            {ch:'▶', dir:BTN.RIGHT, top:'calc(50% - '+half+'px)', right:'0'},
+        ];
+        dirs.forEach(function(d) {
+            var b = document.createElement('button');
+            var pos = 'position:absolute;';
+            if (d.top    !== undefined) pos += 'top:'+d.top+';';
+            if (d.bottom !== undefined) pos += 'bottom:'+d.bottom+';';
+            if (d.left   !== undefined) pos += 'left:'+d.left+';';
+            if (d.right  !== undefined) pos += 'right:'+d.right+';';
+            b.style.cssText = pos + [
+                'width:'+bs+'px', 'height:'+bs+'px',
+                'border-radius:4px', 'background:rgba(80,95,120,0.75)',
+                'border:2px solid rgba(255,255,255,0.15)',
+                'color:#ddd', 'font-size:'+Math.round(bs*0.48)+'px',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                '-webkit-tap-highlight-color:transparent',
+                'user-select:none', 'touch-action:none', 'cursor:pointer',
+            ].join(';');
+            var sp = document.createElement('span');
+            sp.textContent = d.ch; sp.style.pointerEvents = 'none';
+            b.appendChild(sp);
+            var dn = function(e){e.preventDefault();_simulateInput(d.dir,1);b.style.opacity='0.65';};
+            var up = function(e){e.preventDefault();_simulateInput(d.dir,0);b.style.opacity='';};
+            b.addEventListener('pointerdown',dn);
+            b.addEventListener('pointerup',up);
+            b.addEventListener('pointerleave',up);
+            b.addEventListener('pointercancel',up);
+            wrap.appendChild(b);
+        });
+        var center = document.createElement('div');
+        center.style.cssText = 'position:absolute;top:calc(50% - '+half+'px);left:calc(50% - '+half+'px);width:'+bs+'px;height:'+bs+'px;background:rgba(55,68,90,0.5);border-radius:3px;pointer-events:none;';
+        wrap.appendChild(center);
+        return wrap;
+    }
+
+    function _mdLabel(text) {
+        var d = document.createElement('div');
+        d.textContent = text;
+        d.style.cssText = 'font-size:8px;letter-spacing:1px;color:#445566;font-family:"Russo One",sans-serif;text-align:center;';
+        return d;
+    }
+
+    // ── Paineis de controle ───────────────────────────────────────────
+    function _buildLandscapeControls() {
+        var bg = 'rgba(10,16,28,0.97)';
+
+        // Painel esquerdo: D-pad
+        _lcPanel = document.createElement('div');
+        _lcPanel.style.cssText = [
+            'position:absolute', 'top:0', 'bottom:0', 'left:0',
+            'width:'+PANEL_L+'px', 'background:'+bg,
+            'border-right:2px solid #222',
+            'display:flex', 'flex-direction:column',
+            'align-items:center', 'justify-content:center',
+            'gap:8px', 'z-index:10',
+        ].join(';');
+        _lcPanel.appendChild(_makeDpad(90));
+        _overlay.appendChild(_lcPanel);
+
+        // Painel direito: START (topo) + A/B/C cluster (baixo)
+        _rcPanel = document.createElement('div');
+        _rcPanel.style.cssText = [
+            'position:absolute', 'top:0', 'bottom:0', 'right:0',
+            'width:'+PANEL_R+'px', 'background:'+bg,
+            'border-left:2px solid #222',
+            'display:flex', 'flex-direction:column',
+            'align-items:center', 'justify-content:space-between',
+            'padding:20px 10px', 'z-index:10',
+        ].join(';');
+        _rcPanel.appendChild(_makeStartPill());
+
+        var cluster = document.createElement('div');
+        cluster.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
+        row.appendChild(_makeBtn('A', 52,
+            'linear-gradient(135deg,#D83020,#901010)',
+            '0 4px 12px rgba(216,48,32,0.5)', BTN.A));
+        row.appendChild(_makeBtn('B', 62,
+            'linear-gradient(135deg,#1864D8,#0A3D90)',
+            '0 4px 14px rgba(24,100,216,0.55)', BTN.B));
+        cluster.appendChild(row);
+        cluster.appendChild(_makeBtn('C', 74,
+            'linear-gradient(135deg,#2880F0,#1050C0)',
+            '0 4px 18px rgba(40,128,240,0.65)', BTN.C));
+        cluster.appendChild(_mdLabel('PULAR'));
+        _rcPanel.appendChild(cluster);
+        _overlay.appendChild(_rcPanel);
+    }
+
+    function _buildPortraitControls() {
+        var bg = 'rgba(10,16,28,0.97)';
+        _pcPanel = document.createElement('div');
+        _pcPanel.style.cssText = [
+            'position:absolute', 'left:0', 'right:0', 'bottom:0',
+            'height:'+PANEL_B+'px', 'background:'+bg,
+            'border-top:2px solid #222',
+            'display:none', 'align-items:center',
+            'justify-content:space-around', 'padding:0 12px', 'z-index:10',
+        ].join(';');
+        _pcPanel.appendChild(_makeDpad(80));
+        _pcPanel.appendChild(_makeStartPill());
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
+        btnRow.appendChild(_makeBtn('A', 50,
+            'linear-gradient(135deg,#D83020,#901010)',
+            '0 4px 12px rgba(216,48,32,0.5)', BTN.A));
+        btnRow.appendChild(_makeBtn('B', 60,
+            'linear-gradient(135deg,#1864D8,#0A3D90)',
+            '0 4px 14px rgba(24,100,216,0.55)', BTN.B));
+        btnRow.appendChild(_makeBtn('C', 72,
+            'linear-gradient(135deg,#2880F0,#1050C0)',
+            '0 4px 18px rgba(40,128,240,0.65)', BTN.C));
+        _pcPanel.appendChild(btnRow);
+        _overlay.appendChild(_pcPanel);
+    }
+
+    function _applyLayout() {
+        if (!_iframe) return;
+        var portrait = window.innerHeight > window.innerWidth;
+        if (portrait) {
+            Object.assign(_iframe.style, {
+                position:'absolute', top:'0', left:'0', right:'0',
+                bottom: PANEL_B + 'px', width:'100%', height:'auto',
+            });
+            if (_lcPanel) _lcPanel.style.display = 'none';
+            if (_rcPanel) _rcPanel.style.display = 'none';
+            if (_pcPanel) _pcPanel.style.display = 'flex';
+        } else {
+            Object.assign(_iframe.style, {
+                position:'absolute', top:'0', bottom:'0',
+                left: PANEL_L + 'px', right: PANEL_R + 'px',
+                width:'auto', height:'100%',
+            });
+            if (_lcPanel) _lcPanel.style.display = 'flex';
+            if (_rcPanel) _rcPanel.style.display = 'flex';
+            if (_pcPanel) _pcPanel.style.display = 'none';
+        }
+    }
 
     function _criarOverlay(romUrl) {
         var absRom = new URL(romUrl, window.location.href).href;
@@ -38,236 +235,97 @@
         // --- Overlay raiz ---
         _overlay = document.createElement('div');
         _overlay.id = 'megadrive-overlay';
-        Object.assign(_overlay.style, {
-            position: 'fixed', inset: '0',
-            background: '#0f172a', zIndex: '9000',
-            WebkitTapHighlightColor: 'transparent',
-        });
+        _overlay.style.cssText = 'position:fixed;inset:0;background:#0f172a;z-index:9000;overflow:hidden;-webkit-tap-highlight-color:transparent;';
 
-        // --- iframe: tela cheia — EJS controla canvas e gamepad ---
-        var iframe = document.createElement('iframe');
-        Object.assign(iframe.style, {
-            position: 'absolute', inset: '0',
-            width: '100%', height: '100%',
-            border: 'none',
-        });
-        iframe.setAttribute('allowfullscreen', '');
-        iframe.setAttribute('allow', 'autoplay; gamepad *');
+        // --- iframe: EJS sem gamepad nativo ---
+        _iframe = document.createElement('iframe');
+        _iframe.setAttribute('allowfullscreen', '');
+        _iframe.setAttribute('allow', 'autoplay; gamepad *');
+        _iframe.style.border = 'none';
 
         var ejsButtons = JSON.stringify({
-            playPause: false, restart: false, mute: false, settings: false,
-            fullscreen: false, saveState: false, loadState: false,
-            screenRecord: false, gamepad: false, cheat: false,
-            volume: false, netplay: false,
-            saveSavFiles: false, loadSavFiles: false, quickSave: false,
-            quickLoad: false, screenshot: false, cacheManager: false,
-            exitEmulation: false,
+            playPause:false, restart:false, mute:false, settings:false,
+            fullscreen:false, saveState:false, loadState:false,
+            screenRecord:false, gamepad:false, cheat:false,
+            volume:false, netplay:false, saveSavFiles:false,
+            loadSavFiles:false, quickSave:false, quickLoad:false,
+            screenshot:false, cacheManager:false, exitEmulation:false,
         });
 
-        // IMPORTANTE: location OBRIGATORIO — sem location o EJS rejeita o button
-        // e faz fallback para o gamepad padrao genesis ("1" e "2")
-        // B e A usam location:'right' (mesmo slot 130x130px) e serao separados
-        // pelo MutationObserver via DOM manipulation depois do render
-        var ejsGamepad = JSON.stringify([
-            {type: 'dpad',   location: 'left',   inputValues: [4, 5, 6, 7]},
-            {type: 'button', text: 'B', id: 'b', location: 'right', input_value: 8},
-            {type: 'button', text: 'A', id: 'a', location: 'right', input_value: 0},
-            {type: 'button', text: 'Start', id: 'start', location: 'center', input_value: 3}
-        ]);
-
-        iframe.srcdoc = [
-            '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        _iframe.srcdoc = [
+            '<!DOCTYPE html><html><head>',
+            '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
             'body{background:#0f172a;width:100%;height:100vh;overflow:hidden}',
-            '#ejs-game{width:100%;height:100%;background:#0f172a}',
-            // Esconde toolbar/menu do EJS
-            '.ejs_menu_bar,.ejs-menu{display:none!important}',
-            // Canvas: largura maxima, sem forcar altura (aspect ratio natural)
-            'canvas{max-width:100%!important;display:block!important;margin:0 auto!important}',
-
-            // ─── CONTAINER DO GAMEPAD ─────────────────────────────────────────
-            // top inicial: sobrescrito por JS apos medir canvas real
-            // overflow visible: botoes movidos no DOM pelo MutationObserver ficam visiveis
-            '.ejs_virtualGamepad_parent{',
-            '  top:40vh!important;',       // valor inicial conservador
-            '  bottom:56px!important;',    // acima da barra de navegação Android
-            '  height:auto!important;',
-            '  overflow:visible!important;',
-            '  background:#0f172a!important;',
-            '}',
-            // Overflow visible tambem no sub-container right (para botoes movidos)
-            '.ejs_virtualGamepad_right,.ejs_virtualGamepad_left,.ejs_virtualGamepad_bottom{',
-            '  overflow:visible!important;',
-            '}',
-
-            // ─── BOTOES DE ACAO ───────────────────────────────────────────────
-            // Tamanho base — sobrescrito por JS (B=76px, A=52px)
-            '.ejs_virtualGamepad_button{',
-            '  border-radius:50%!important;',
-            '  width:76px!important;height:76px!important;',
-            '  border:2px solid rgba(255,255,255,.22)!important;',
-            '  color:#fff!important;',
-            '  font-size:26px!important;font-weight:bold!important;',
-            '  font-family:"Russo One",sans-serif!important;',
-            '  text-shadow:0 2px 6px rgba(0,0,0,.6)!important;',
-            '  display:flex!important;align-items:center!important;justify-content:center!important;',
-            '}',
-            // D-pad barras
-            '.ejs_dpad_bar{',
-            '  background:rgba(90,90,100,.75)!important;',
-            '  border-radius:6px!important;',
-            '}',
-            // Feedback visual ao pressionar
-            '.ejs_virtualGamepad_button_down{',
-            '  opacity:.65!important;',
-            '  transform:scale(.92)!important;',
-            '}',
+            '#ejs-game{width:100%;height:100%;overflow:hidden}',
+            '.ejs_menu_bar,.ejs-menu,.ejs_virtualGamepad_parent{display:none!important}',
+            'canvas{display:block!important;max-width:100%!important;max-height:100%!important}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
-            'window.EJS_player        = "#ejs-game";',
-            'window.EJS_core          = "genesis_plus_gx";',
-            'window.EJS_gameUrl       = ' + JSON.stringify(absRom) + ';',
-            'window.EJS_pathtodata    = ' + JSON.stringify(EJS_CDN) + ';',
-            'window.EJS_color         = "#0ea5e9";',
-            'window.EJS_startOnLoaded = true;',
-            'window.EJS_Buttons       = ' + ejsButtons + ';',
-            'window.EJS_VirtualGamepadSettings = ' + ejsGamepad + ';',
-
-            // MutationObserver: aplica estilo + move B e A para o parent container
-            // Isso evita sobreposicao dos dois botoes no slot 130x130 do 'right' zone
-            // EJS mantem os event listeners apos os elementos serem movidos no DOM
-            '(function(){',
-            '  var _done=new Set();',
-            '  function _style(){',
-            '    var gp=document.querySelector(".ejs_virtualGamepad_parent");',
-            '    document.querySelectorAll(".ejs_virtualGamepad_button").forEach(function(b){',
-            '      if(_done.has(b))return;',
-            '      var txt=b.textContent.trim().toUpperCase();',
-            '      if(txt==="B"){',
-            '        _done.add(b);',
-            // B: principal — grande, azul brilhante
-            '        b.style.setProperty("width","76px","important");',
-            '        b.style.setProperty("height","76px","important");',
-            '        b.style.setProperty("font-size","26px","important");',
-            '        b.style.background="linear-gradient(145deg,#3b82f6,#1d4ed8)";',
-            '        b.style.boxShadow="0 0 26px rgba(59,130,246,.75),inset 0 -3px 6px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.55)";',
-            // Mover para .ejs_virtualGamepad_parent e posicionar absolutamente
-            // Isso separa B de A (que ficam sobrepostos no sub-container 'right')
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="16px";',
-            '          b.style.top="20%";',
-            '          b.style.left="auto";',
-            '        }',
-            '      }else if(txt==="A"){',
-            '        _done.add(b);',
-            // A: secundario — menor, vermelho discreto, centralizado sob B
-            '        b.style.setProperty("width","56px","important");',
-            '        b.style.setProperty("height","56px","important");',
-            '        b.style.setProperty("font-size","20px","important");',
-            '        b.style.background="linear-gradient(145deg,#ef4444,#b91c1c)";',
-            '        b.style.boxShadow="0 0 16px rgba(239,68,68,.55),inset 0 -2px 4px rgba(0,0,0,.3),0 3px 8px rgba(0,0,0,.5)";',
-            // right: 16 + (76-56)/2 = 26px — centraliza A embaixo de B
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.right="26px";',
-            '          b.style.top="58%";',
-            '          b.style.left="auto";',
-            '        }',
-            '      }else if(/start/i.test(txt)){',
-            '        _done.add(b);',
-            // Start: pilula — movida para o parent e centralizada horizontalmente
-            '        b.style.setProperty("border-radius","22px","important");',
-            '        b.style.setProperty("width","110px","important");',
-            '        b.style.setProperty("height","auto","important");',
-            '        b.style.setProperty("padding","10px 0","important");',
-            '        b.style.setProperty("font-size","13px","important");',
-            '        b.style.background="rgba(50,50,60,.85)";',
-            '        b.style.letterSpacing="1.5px";',
-            '        b.style.boxShadow="0 2px 8px rgba(0,0,0,.5)";',
-            '        b.style.setProperty("text-align","center","important");',
-            '        if(gp&&b.parentElement!==gp){',
-            '          gp.appendChild(b);',
-            '          b.style.position="absolute";',
-            '          b.style.bottom="8px";',
-            '          b.style.left="0";',
-            '          b.style.right="0";',
-            '          b.style.margin="0 auto";',
-            '          b.style.top="auto";',
-            '        }',
-            '      }else{',
-            // Outros botoes extras (C, X, Y) — discreto
-            '        if(!_done.has(b)){',
-            '          _done.add(b);',
-            '          b.style.background="rgba(40,40,50,.7)";',
-            '          b.style.setProperty("border","1px solid rgba(255,255,255,.12)","important");',
-            '        }',
-            '      }',
-            '    });',
-            '  }',
-            '  new MutationObserver(_style).observe(document.documentElement,{childList:true,subtree:true});',
-            '})();',
-
-            // Ao iniciar: foca canvas + reposiciona gamepad colado ao canvas
-            'window.EJS_onGameStart=function(){',
-            '  var c=document.querySelector("canvas");',
-            '  if(c){c.setAttribute("tabindex","0");c.focus();}',
-            '  setTimeout(function(){',
-            '    var canvas=document.querySelector("canvas");',
-            '    var gp=document.querySelector(".ejs_virtualGamepad_parent");',
-            '    if(canvas&&gp){',
-            '      var rect=canvas.getBoundingClientRect();',
-            '      var pct=Math.ceil(((rect.bottom+2)/window.innerHeight)*100);',
-            '      pct=Math.max(25,Math.min(42,pct));',
-            '      gp.style.setProperty("top",pct+"vh","important");',
-            '    }',
-            '  },700);',
-            '};',
+            'window.EJS_player="#ejs-game";',
+            'window.EJS_core="genesis_plus_gx";',
+            'window.EJS_gameUrl='+JSON.stringify(absRom)+';',
+            'window.EJS_pathtodata='+JSON.stringify(EJS_CDN)+';',
+            'window.EJS_color="#0ea5e9";',
+            'window.EJS_startOnLoaded=true;',
+            'window.EJS_Buttons='+ejsButtons+';',
+            'window.EJS_VirtualGamepadSettings=[];',
             '<\/script>',
-            '<script src="' + EJS_CDN + 'loader.js"><\/script>',
+            '<script src="'+EJS_CDN+'loader.js"><\/script>',
             '</body></html>',
         ].join('');
 
-        _overlay.appendChild(iframe);
+        _overlay.appendChild(_iframe);
 
-        // --- Botao Sair ---
-        // Posicao calculada pelo aspect ratio genesis 320:224 (canvas width-limited em portrait)
-        // Evita o gap de 25vh que ocorria com o valor fixo de 57vh
-        var cvh = _genesisCanvasVh();
-
+        // --- Botao sair ---
         var exitBtn = document.createElement('button');
-        exitBtn.setAttribute('aria-label', 'Sair do jogo');
-        exitBtn.innerHTML =
-            '<span class="material-icons" style="font-size:18px;pointer-events:none;">arrow_back</span>' +
-            '<span style="pointer-events:none;margin-left:5px;">Sair</span>';
-        Object.assign(exitBtn.style, {
-            position: 'absolute',
-            top: 'calc(' + cvh + 'vh + 8px)', left: '12px',
-            zIndex: '9200',
-            display: 'flex', alignItems: 'center',
-            padding: '6px 12px',
-            background: 'rgba(15,23,42,0.80)',
-            border: '1px solid rgba(255,255,255,0.30)',
-            color: '#fff', borderRadius: '20px',
-            cursor: 'pointer',
-            touchAction: 'manipulation',
-            WebkitTapHighlightColor: 'transparent',
-            minWidth: '56px', minHeight: '44px',
-            fontSize: '0.75rem', fontFamily: 'Inter,sans-serif',
-            whiteSpace: 'nowrap',
+        exitBtn.setAttribute('aria-label', 'Sair');
+        exitBtn.style.cssText = [
+            'position:absolute', 'top:8px', 'left:8px', 'z-index:20',
+            'background:rgba(15,23,42,0.80)', 'border:1px solid rgba(255,255,255,0.30)',
+            'color:#fff', 'border-radius:20px',
+            'display:flex', 'align-items:center', 'padding:6px 12px',
+            'cursor:pointer', 'touch-action:manipulation',
+            '-webkit-tap-highlight-color:transparent',
+            'min-width:56px', 'min-height:44px',
+            'font-size:0.75rem', 'font-family:Inter,sans-serif',
+            'white-space:nowrap',
+        ].join(';');
+        var bkIcon = document.createElement('span');
+        bkIcon.className = 'material-icons';
+        bkIcon.style.cssText = 'font-size:18px;pointer-events:none;';
+        bkIcon.textContent = 'arrow_back';
+        var bkText = document.createElement('span');
+        bkText.textContent = 'Sair';
+        bkText.style.cssText = 'pointer-events:none;margin-left:5px;';
+        exitBtn.appendChild(bkIcon);
+        exitBtn.appendChild(bkText);
+        exitBtn.addEventListener('click', function () {
+            if (window.fecharJoguinhos) window.fecharJoguinhos();
+            else window.MegadriveGame.fechar();
         });
-        exitBtn.addEventListener('click', function () { history.back(); });
         _overlay.appendChild(exitBtn);
 
+        // --- Constroi paineis e adiciona ao body ---
+        _buildLandscapeControls();
+        _buildPortraitControls();
         document.body.appendChild(_overlay);
 
+        // --- Layout inicial + resize ---
+        _applyLayout();
+        _rh = function () { _applyLayout(); };
+        window.addEventListener('resize', _rh);
+        window.addEventListener('orientationchange', _rh);
+
+        // --- ESC para sair ---
         _onKey = function (e) {
-            if (e.key === 'Escape' && e.target === document.body) history.back();
+            if (e.key === 'Escape') {
+                if (window.fecharJoguinhos) window.fecharJoguinhos();
+                else window.MegadriveGame.fechar();
+            }
         };
         document.addEventListener('keydown', _onKey);
     }
@@ -279,7 +337,9 @@
         },
 
         fechar: function () {
-            if (_onKey)   { document.removeEventListener('keydown', _onKey); _onKey = null; }
+            if (_rh) { window.removeEventListener('resize', _rh); window.removeEventListener('orientationchange', _rh); _rh = null; }
+            if (_onKey) { document.removeEventListener('keydown', _onKey); _onKey = null; }
+            _lcPanel = _rcPanel = _pcPanel = _iframe = null;
             if (_overlay) { _overlay.remove(); _overlay = null; }
         },
     };
