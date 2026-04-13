@@ -393,37 +393,31 @@
     var animFrame = null, ac = null;
     var _kh = null, _rh = null;
     var inputJump = false, inputSD = false, inputJumpHeld = false;
-    var sdBtnEl = null, jumpBtnEl = null;
-    var _btnBaseTransform = 'translateY(-50%)'; // atualizado por applyLayout
+    var _leftPanel = null, _rightPanel = null, _bottomPanel = null;
+    var PANEL_L = 130, PANEL_R = 150, PANEL_B = 180;
     var S;
 
-    // Reposiciona botoes de controle conforme orientacao
+    // Reposiciona canvas e exibe paineis corretos conforme orientacao
     function applyLayout() {
+        if (!canvas) return;
         var portrait = window.innerHeight > window.innerWidth;
-        if (sdBtnEl) {
-            if (portrait) {
-                sdBtnEl.style.top = 'auto';
-                sdBtnEl.style.bottom = '40px';
-                _btnBaseTransform = '';
-                sdBtnEl.style.transform = '';
-            } else {
-                sdBtnEl.style.top = '50%';
-                sdBtnEl.style.bottom = 'auto';
-                _btnBaseTransform = 'translateY(-50%)';
-                sdBtnEl.style.transform = 'translateY(-50%)';
-            }
+        if (portrait) {
+            W = window.innerWidth;
+            H = window.innerHeight - PANEL_B;
+            canvas.style.left = '0';
+            canvas.style.top  = '0';
+        } else {
+            W = window.innerWidth - PANEL_L - PANEL_R;
+            H = window.innerHeight;
+            canvas.style.left = PANEL_L + 'px';
+            canvas.style.top  = '0';
         }
-        if (jumpBtnEl) {
-            if (portrait) {
-                jumpBtnEl.style.top = 'auto';
-                jumpBtnEl.style.bottom = '30px';
-                jumpBtnEl.style.transform = '';
-            } else {
-                jumpBtnEl.style.top = '50%';
-                jumpBtnEl.style.bottom = 'auto';
-                jumpBtnEl.style.transform = 'translateY(-50%)';
-            }
-        }
+        canvas.width  = W;
+        canvas.height = H;
+        GY = H * 0.62;
+        if (_leftPanel)   _leftPanel.style.display   = portrait ? 'none' : 'flex';
+        if (_rightPanel)  _rightPanel.style.display  = portrait ? 'none' : 'flex';
+        if (_bottomPanel) _bottomPanel.style.display = portrait ? 'flex' : 'none';
     }
 
     function initState() {
@@ -965,10 +959,8 @@
         window.addEventListener('keydown',_kh); window.addEventListener('keyup',_ku); _kh._up=_ku;
 
         _rh = function(){
-            W=window.innerWidth;H=window.innerHeight;GY=H*0.62;
-            canvas.width=W;canvas.height=H;
-            S.x=W*0.22;if(S.y>GY)S.y=GY;
             applyLayout();
+            if (S) { S.x = W * 0.22; if (S.y > GY) S.y = GY; }
         };
         window.addEventListener('resize',_rh);
         window.addEventListener('orientationchange',_rh);
@@ -977,34 +969,139 @@
     function removeInput() {
         if(_kh){window.removeEventListener('keydown',_kh);if(_kh._up)window.removeEventListener('keyup',_kh._up);_kh=null;}
         if(_rh){window.removeEventListener('resize',_rh);window.removeEventListener('orientationchange',_rh);_rh=null;}
-        if(sdBtnEl){sdBtnEl.remove();sdBtnEl=null;}
-        if(jumpBtnEl){jumpBtnEl.remove();jumpBtnEl=null;}
+        if(_leftPanel){_leftPanel.remove();_leftPanel=null;}
+        if(_rightPanel){_rightPanel.remove();_rightPanel=null;}
+        if(_bottomPanel){_bottomPanel.remove();_bottomPanel=null;}
     }
 
-    function createSDBtn() {
-        sdBtnEl = document.createElement('button');
-        sdBtnEl.style.cssText=['position:fixed','top:50%','left:24px','transform:translateY(-50%)','z-index:9100','width:92px','height:92px','border-radius:50%','background:linear-gradient(135deg,#C02020,#801010)','border:3px solid #FFE040','color:#FFE040','font-family:"Russo One",sans-serif','font-size:12px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 18px rgba(192,32,32,.5)'].join(';');
-        sdBtnEl.innerHTML='<span style="font-size:28px;line-height:1;">&#9654;</span><span style="font-size:10px;margin-top:3px;letter-spacing:1px;">SPIN</span>';
-        var down=function(e){if(e)e.preventDefault();inputSD=true;initAC();sdBtnEl.style.opacity='0.75';sdBtnEl.style.transform=_btnBaseTransform+' scale(0.93)';};
-        var up=function(e){if(e)e.preventDefault();inputSD=false;sdBtnEl.style.opacity='';sdBtnEl.style.transform=_btnBaseTransform;};
-        sdBtnEl.addEventListener('pointerdown',down);
-        sdBtnEl.addEventListener('pointerup',up);
-        sdBtnEl.addEventListener('pointerleave',up);
-        sdBtnEl.addEventListener('pointercancel',up);
-        overlay.appendChild(sdBtnEl);
+    // ── Botao redondo estilo Mega Drive ──
+    function _makeMDBtn(label, size, bg, shadow, actions) {
+        var btn = document.createElement('button');
+        btn.style.cssText = [
+            'width:'+size+'px','height:'+size+'px',
+            'border-radius:50%','background:'+bg,
+            'border:3px solid rgba(255,255,255,0.18)',
+            'color:#fff','font-family:"Russo One",sans-serif',
+            'font-size:'+Math.round(size*0.28)+'px','font-weight:700',
+            'cursor:pointer','display:flex','align-items:center','justify-content:center',
+            '-webkit-tap-highlight-color:transparent',
+            'user-select:none','touch-action:none',
+            'box-shadow:'+shadow,'flex-shrink:0','letter-spacing:1px',
+        ].join(';');
+        var sp = document.createElement('span');
+        sp.textContent = label; sp.style.pointerEvents = 'none';
+        btn.appendChild(sp);
+        var dn = function(e){if(e)e.preventDefault();initAC();btn.style.opacity='0.72';btn.style.transform='scale(0.90)';actions.down();};
+        var up = function(e){if(e)e.preventDefault();btn.style.opacity='';btn.style.transform='';actions.up();};
+        btn.addEventListener('pointerdown',dn);
+        btn.addEventListener('pointerup',up);
+        btn.addEventListener('pointerleave',up);
+        btn.addEventListener('pointercancel',up);
+        return btn;
     }
 
-    function createJumpBtn() {
-        jumpBtnEl = document.createElement('button');
-        jumpBtnEl.style.cssText=['position:fixed','top:50%','right:24px','transform:translateY(-50%)','z-index:9100','width:110px','height:110px','border-radius:50%','background:linear-gradient(135deg,#F8B800,#C07000)','border:3px solid #FFE040','color:#fff','font-family:"Russo One",sans-serif','font-size:16px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 22px rgba(248,184,0,.55)','letter-spacing:1px'].join(';');
-        jumpBtnEl.innerHTML='<span class="material-icons" style="font-size:40px;pointer-events:none;">arrow_upward</span><span style="font-size:12px;margin-top:2px;pointer-events:none;">JUMP</span>';
-        var down=function(e){if(e)e.preventDefault();inputJump=true;inputJumpHeld=true;initAC();jumpBtnEl.style.opacity='0.75';jumpBtnEl.style.transform=_btnBaseTransform+' scale(0.93)';};
-        var up=function(e){if(e)e.preventDefault();inputJumpHeld=false;jumpBtnEl.style.opacity='';jumpBtnEl.style.transform=_btnBaseTransform;};
-        jumpBtnEl.addEventListener('pointerdown',down);
-        jumpBtnEl.addEventListener('pointerup',up);
-        jumpBtnEl.addEventListener('pointerleave',up);
-        jumpBtnEl.addEventListener('pointercancel',up);
-        overlay.appendChild(jumpBtnEl);
+    function _makeStartBtn(exitFn) {
+        var btn = document.createElement('button');
+        btn.style.cssText = [
+            'background:#1a2535','border:2px solid #3a4555',
+            'color:#7a8a9a','border-radius:4px','padding:7px 14px',
+            'font-family:"Russo One",sans-serif','font-size:10px',
+            'letter-spacing:2px','cursor:pointer',
+            '-webkit-tap-highlight-color:transparent',
+            'user-select:none','touch-action:none',
+        ].join(';');
+        var sp = document.createElement('span');
+        sp.textContent = 'START'; sp.style.pointerEvents = 'none';
+        btn.appendChild(sp);
+        btn.addEventListener('pointerdown', function(e){e.preventDefault();exitFn();});
+        return btn;
+    }
+
+    function _mdLabel(text) {
+        var d = document.createElement('div');
+        d.textContent = text;
+        d.style.cssText = 'font-size:8px;letter-spacing:1px;color:#445566;font-family:"Russo One",sans-serif;text-align:center;';
+        return d;
+    }
+
+    function createMDButtons() {
+        var exitFn = function(){if(window.fecharJoguinhos)window.fecharJoguinhos();else window.SonicGame.fechar();};
+        var panelBg = 'rgba(10,16,28,0.97)';
+
+        // ── PAINEL ESQUERDO: botao A (spin dash) ──
+        _leftPanel = document.createElement('div');
+        _leftPanel.style.cssText = [
+            'position:absolute','top:0','bottom:0','left:0',
+            'width:'+PANEL_L+'px','background:'+panelBg,
+            'border-right:2px solid #222',
+            'display:flex','flex-direction:column',
+            'align-items:center','justify-content:center',
+            'gap:8px','z-index:10',
+        ].join(';');
+        _leftPanel.appendChild(_makeMDBtn('A', 72,
+            'linear-gradient(135deg,#D83020,#901010)',
+            '0 4px 16px rgba(216,48,32,0.55)',
+            {down:function(){inputSD=true;}, up:function(){inputSD=false;}}
+        ));
+        _leftPanel.appendChild(_mdLabel('SPIN DASH'));
+        overlay.appendChild(_leftPanel);
+
+        // ── PAINEL DIREITO: START + B + C (pular) ──
+        _rightPanel = document.createElement('div');
+        _rightPanel.style.cssText = [
+            'position:absolute','top:0','bottom:0','right:0',
+            'width:'+PANEL_R+'px','background:'+panelBg,
+            'border-left:2px solid #222',
+            'display:flex','flex-direction:column',
+            'align-items:center','justify-content:space-between',
+            'padding:20px 10px','z-index:10',
+        ].join(';');
+        _rightPanel.appendChild(_makeStartBtn(exitFn));
+        var bcWrap = document.createElement('div');
+        bcWrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:6px;';
+        var bcRow = document.createElement('div');
+        bcRow.style.cssText = 'display:flex;align-items:flex-end;gap:8px;';
+        bcRow.appendChild(_makeMDBtn('B', 60,
+            'linear-gradient(135deg,#1864D8,#0A3D90)',
+            '0 4px 14px rgba(24,100,216,0.55)',
+            {down:function(){inputJump=true;inputJumpHeld=true;}, up:function(){inputJumpHeld=false;}}
+        ));
+        bcRow.appendChild(_makeMDBtn('C', 76,
+            'linear-gradient(135deg,#2880F0,#1050C0)',
+            '0 4px 18px rgba(40,128,240,0.65)',
+            {down:function(){inputJump=true;inputJumpHeld=true;}, up:function(){inputJumpHeld=false;}}
+        ));
+        bcWrap.appendChild(bcRow);
+        bcWrap.appendChild(_mdLabel('PULAR'));
+        _rightPanel.appendChild(bcWrap);
+        overlay.appendChild(_rightPanel);
+
+        // ── PAINEL INFERIOR: modo retrato ──
+        _bottomPanel = document.createElement('div');
+        _bottomPanel.style.cssText = [
+            'position:absolute','left:0','right:0','bottom:0',
+            'height:'+PANEL_B+'px','background:'+panelBg,
+            'border-top:2px solid #222',
+            'display:none','align-items:center',
+            'justify-content:space-around','padding:0 16px','z-index:10',
+        ].join(';');
+        _bottomPanel.appendChild(_makeMDBtn('A', 64,
+            'linear-gradient(135deg,#D83020,#901010)',
+            '0 4px 14px rgba(216,48,32,0.55)',
+            {down:function(){inputSD=true;}, up:function(){inputSD=false;}}
+        ));
+        _bottomPanel.appendChild(_makeMDBtn('B', 68,
+            'linear-gradient(135deg,#1864D8,#0A3D90)',
+            '0 4px 14px rgba(24,100,216,0.55)',
+            {down:function(){inputJump=true;inputJumpHeld=true;}, up:function(){inputJumpHeld=false;}}
+        ));
+        _bottomPanel.appendChild(_makeMDBtn('C', 80,
+            'linear-gradient(135deg,#2880F0,#1050C0)',
+            '0 4px 18px rgba(40,128,240,0.65)',
+            {down:function(){inputJump=true;inputJumpHeld=true;}, up:function(){inputJumpHeld=false;}}
+        ));
+        _bottomPanel.appendChild(_makeStartBtn(exitFn));
+        overlay.appendChild(_bottomPanel);
     }
 
     // ================================================================
@@ -1015,21 +1112,14 @@
         abrir: function () {
             overlay = document.createElement('div');
             overlay.id = 'sonic-overlay';
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#000;';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#000;overflow:hidden;';
 
             canvas = document.createElement('canvas');
-            W = window.innerWidth; H = window.innerHeight;
-            canvas.width = W; canvas.height = H;
-            canvas.style.cssText = 'display:block;touch-action:none;';
+            canvas.style.cssText = 'position:absolute;display:block;touch-action:none;';
             overlay.appendChild(canvas);
-
-            var backBtn = document.createElement('button');
-            backBtn.style.cssText = ['position:fixed','top:16px','left:16px','z-index:9100','background:rgba(0,0,0,0.55)','border:1px solid rgba(255,255,255,0.22)','color:#fff','border-radius:50%','width:44px','height:44px','cursor:pointer','display:flex','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent'].join(';');
-            backBtn.innerHTML = '<span class="material-icons" style="font-size:22px;">arrow_back</span>';
-            backBtn.addEventListener('click', function () { if(window.fecharJoguinhos)window.fecharJoguinhos();else window.SonicGame.fechar(); });
-            overlay.appendChild(backBtn);
-
             document.body.appendChild(overlay);
+
+            applyLayout(); // define W, H, GY, canvas.width/height
             ctx = canvas.getContext('2d');
 
             try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
@@ -1038,9 +1128,8 @@
             initSprites(); // carrega PNG ou gera sprites
             initGifs();    // carrega GIFs animados (run + jump)
             initAssets();  // carrega fundo.png + eggman.gif
-            createSDBtn();
-            createJumpBtn();
-            applyLayout();
+            createMDButtons();
+            applyLayout(); // re-aplica com paineis criados
             setupInput();
             gameLoop();
         },
