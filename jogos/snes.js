@@ -91,7 +91,7 @@
         document.body.appendChild(_overlay);
 
         // Fetch ROM list
-        fetch(ROM_BASE + 'index.json')
+        fetch(ROM_BASE + 'index.json?v=' + Date.now())
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 grid.innerHTML = '';
