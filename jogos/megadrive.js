@@ -15,7 +15,7 @@
     // RetroPad indices para genesis_plus_gx
     var BTN = { B:0, A:1, START:3, UP:4, DOWN:5, LEFT:6, RIGHT:7, C:8 };
 
-    var PANEL_L = 130, PANEL_R = 150, PANEL_B = 180;
+    var PANEL_L = 120, PANEL_R = 140, PANEL_B = 175;
 
     var _overlay = null;
     var _iframe  = null;
@@ -80,8 +80,8 @@
         return btn;
     }
 
-    function _makeDpad(sz) {
-        var bs = Math.round(sz * 0.33);
+    function _makeDpad(bs) {
+        var sz = bs * 3;
         var half = Math.round(bs / 2);
         var wrap = document.createElement('div');
         wrap.style.cssText = 'position:relative;width:'+sz+'px;height:'+sz+'px;flex-shrink:0;';
@@ -145,7 +145,7 @@
             'align-items:center', 'justify-content:center',
             'gap:8px', 'z-index:10',
         ].join(';');
-        _lcPanel.appendChild(_makeDpad(90));
+        _lcPanel.appendChild(_makeDpad(38));
         _overlay.appendChild(_lcPanel);
 
         // Painel direito: START (topo) + A/B/C cluster (baixo)
@@ -189,7 +189,7 @@
             'display:none', 'align-items:center',
             'justify-content:space-around', 'padding:0 12px', 'z-index:10',
         ].join(';');
-        _pcPanel.appendChild(_makeDpad(80));
+        _pcPanel.appendChild(_makeDpad(34));
         _pcPanel.appendChild(_makeStartPill());
         var btnRow = document.createElement('div');
         btnRow.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
@@ -210,19 +210,12 @@
         if (!_iframe) return;
         var portrait = window.innerHeight > window.innerWidth;
         if (portrait) {
-            Object.assign(_iframe.style, {
-                position:'absolute', top:'0', left:'0', right:'0',
-                bottom: PANEL_B + 'px', width:'100%', height:'auto',
-            });
+            _iframe.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:'+PANEL_B+'px;border:none;';
             if (_lcPanel) _lcPanel.style.display = 'none';
             if (_rcPanel) _rcPanel.style.display = 'none';
             if (_pcPanel) _pcPanel.style.display = 'flex';
         } else {
-            Object.assign(_iframe.style, {
-                position:'absolute', top:'0', bottom:'0',
-                left: PANEL_L + 'px', right: PANEL_R + 'px',
-                width:'auto', height:'100%',
-            });
+            _iframe.style.cssText = 'position:absolute;top:0;bottom:0;left:'+PANEL_L+'px;right:'+PANEL_R+'px;border:none;';
             if (_lcPanel) _lcPanel.style.display = 'flex';
             if (_rcPanel) _rcPanel.style.display = 'flex';
             if (_pcPanel) _pcPanel.style.display = 'none';
