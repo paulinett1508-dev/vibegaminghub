@@ -4,10 +4,10 @@
 // Core: prosystem (RetroArch/WASM) carregado via CDN EmulatorJS.
 // ROM:  assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78
 //
-// Layout PSP landscape (mesma logica de snes.js):
-//   [ D-pad ] [ tela ] [ FIRE + PAUSE ]
+// Layout responsivo:
+//   portrait  → iframe no topo + painel de controles na base
+//   landscape → iframe fullscreen + paineis laterais sobrepostos
 //
-// Orientation lock em landscape; fallback mostra hint "gire o celular".
 // Input via EJS_emulator.gameManager.simulateInput (RetroPad).
 // =====================================================================
 
@@ -17,12 +17,12 @@
     var EJS_CDN = 'https://cdn.emulatorjs.org/stable/data/';
     var ROM     = 'assets/roms/atari/7800/Donkey Kong (1988) (Atari).a78';
 
-    var _overlay = null;
-    var _onKey   = null;
-    var _iframe  = null;
-    var _resizeHandler = null;
-    var _rotateHint    = null;
-    var _orientationLocked = false;
+    var _overlay           = null;
+    var _onKey             = null;
+    var _iframe            = null;
+    var _resizeHandler     = null;
+    var _landscapeControls = null;
+    var _portraitControls  = null;
     var _pressCount = { 4: 0, 5: 0, 6: 0, 7: 0 };
 
     // ---- Input ----
@@ -45,63 +45,6 @@
         if (_pressCount[id] <= 0) return;
         _pressCount[id] -= 1;
         if (_pressCount[id] === 0) _sim(id, 0);
-    }
-
-    // ---- Orientation ----
-
-    function _tryLockLandscape() {
-        if (_orientationLocked) return;
-        var lockLandscape = function () {
-            try {
-                if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                    var p = screen.orientation.lock('landscape');
-                    if (p && typeof p.then === 'function') {
-                        p.then(function () { _orientationLocked = true; _updateRotateHint(); })
-                         .catch(function () { /* fallback vira hint */ });
-                    }
-                }
-            } catch (e) { /* ignora */ }
-        };
-        var el = _overlay || document.documentElement;
-        var req = el.requestFullscreen || el.webkitRequestFullscreen ||
-                  el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (req) {
-            try {
-                var fp = req.call(el);
-                if (fp && typeof fp.then === 'function') {
-                    fp.then(lockLandscape).catch(lockLandscape);
-                } else {
-                    lockLandscape();
-                }
-            } catch (e) { lockLandscape(); }
-        } else {
-            lockLandscape();
-        }
-    }
-
-    function _exitFullscreen() {
-        try {
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
-                var ex = document.exitFullscreen || document.webkitExitFullscreen ||
-                         document.mozCancelFullScreen || document.msExitFullscreen;
-                if (ex) ex.call(document);
-            }
-        } catch (e) { /* ignora */ }
-    }
-
-    function _unlockOrientation() {
-        try {
-            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-                screen.orientation.unlock();
-            }
-        } catch (e) { /* ignora */ }
-        _orientationLocked = false;
-        _exitFullscreen();
-    }
-
-    function _updateRotateHint() {
-        if (!_overlay || !_rotateHint) return;
-        _rotateHint.style.display = (window.innerHeight > window.innerWidth) ? 'flex' : 'none';
     }
 
     // ---- Botoes ----
@@ -246,6 +189,115 @@
         return btn;
     }
 
+    // ---- Layout responsivo ----
+
+    // Paineis laterais para landscape (sobrepostos sobre iframe fullscreen)
+    function _buildLandscapeControls() {
+        var lc = document.createElement('div');
+        Object.assign(lc.style, {
+            position: 'absolute',
+            top: '0', left: '0', right: '0', bottom: '0',
+            display: 'none',            // _applyLayout ativa
+            gridTemplateColumns: '130px 1fr 140px',
+            alignItems: 'center',
+            pointerEvents: 'none',      // centro passa toque pro iframe
+            zIndex: '10',
+        });
+
+        var leftPanel = document.createElement('div');
+        Object.assign(leftPanel.style, {
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '10px', height: '100%', padding: '10px 8px',
+            background: 'rgba(17,17,17,0.92)',
+            pointerEvents: 'all', overflow: 'hidden',
+        });
+        leftPanel.appendChild(_makeDpad());
+        leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
+
+        var centerSpacer = document.createElement('div'); // transparente, pass-through
+
+        var rightPanel = document.createElement('div');
+        Object.assign(rightPanel.style, {
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '14px', height: '100%', padding: '10px 8px',
+            background: 'rgba(17,17,17,0.92)',
+            pointerEvents: 'all', overflow: 'hidden',
+        });
+        rightPanel.appendChild(_makeFireBtn());
+        rightPanel.appendChild(_makeSmallBtn('PAUSE', 3));
+
+        lc.appendChild(leftPanel);
+        lc.appendChild(centerSpacer);
+        lc.appendChild(rightPanel);
+        return lc;
+    }
+
+    // Painel inferior para portrait (controles numa faixa na base da tela)
+    function _buildPortraitControls() {
+        var pc = document.createElement('div');
+        Object.assign(pc.style, {
+            position: 'absolute',
+            left: '0', right: '0', bottom: '0',
+            height: '200px',
+            background: 'rgba(15,23,42,0.97)',
+            display: 'none',            // _applyLayout ativa
+            flexDirection: 'column',
+            padding: '8px 16px',
+            gap: '8px',
+            overflow: 'hidden',
+            zIndex: '10',
+        });
+
+        // Linha 1: SELECT + PAUSE centralizados
+        var row1 = document.createElement('div');
+        Object.assign(row1.style, {
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center',
+            gap: '24px', flexShrink: '0',
+        });
+        row1.appendChild(_makeSmallBtn('SELECT', 2));
+        row1.appendChild(_makeSmallBtn('PAUSE', 3));
+
+        // Linha 2: D-pad esquerda + FIRE direita
+        var row2 = document.createElement('div');
+        Object.assign(row2.style, {
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-around',
+            flex: '1',
+        });
+        row2.appendChild(_makeDpad());
+        row2.appendChild(_makeFireBtn());
+
+        pc.appendChild(row1);
+        pc.appendChild(row2);
+        return pc;
+    }
+
+    // Ajusta iframe e visibilidade dos paineis conforme orientacao
+    function _applyLayout() {
+        if (!_iframe || !_landscapeControls || !_portraitControls) return;
+        var portrait = window.innerHeight > window.innerWidth;
+
+        if (portrait) {
+            Object.assign(_iframe.style, {
+                position: 'absolute',
+                top: '0', left: '0', right: '0', bottom: 'auto',
+                width: '100%', height: 'calc(100% - 200px)',
+            });
+        } else {
+            Object.assign(_iframe.style, {
+                position: 'absolute',
+                top: '0', left: '0', right: '0', bottom: '0',
+                width: '100%', height: '100%',
+            });
+        }
+
+        _landscapeControls.style.display = portrait ? 'none' : 'grid';
+        _portraitControls.style.display  = portrait ? 'flex' : 'none';
+    }
+
     // ---- Launch ----
 
     function _criarOverlay() {
@@ -257,49 +309,16 @@
         _overlay = document.createElement('div');
         _overlay.id = 'donkeykong-overlay';
         Object.assign(_overlay.style, {
-            position: 'fixed', inset: '0',
+            position: 'fixed',
+            top: '0', left: '0', right: '0', bottom: '0',
             background: '#111', zIndex: '9000',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden',
             WebkitTapHighlightColor: 'transparent',
         });
 
-        // Grade PSP: [painel esquerdo] [tela central] [painel direito]
-        var psp = document.createElement('div');
-        Object.assign(psp.style, {
-            display: 'grid',
-            gridTemplateColumns: '130px 1fr 140px',
-            width: '100%', height: '100%',
-            alignItems: 'center',
-        });
-
-        // --- Painel esquerdo: D-pad ---
-        var leftPanel = document.createElement('div');
-        Object.assign(leftPanel.style, {
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: '10px',
-            height: '100%',
-            padding: '10px 8px',
-            overflow: 'hidden',
-        });
-        leftPanel.appendChild(_makeDpad());
-        leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
-
-        // --- Painel central: iframe + fechar ---
-        var centerPanel = document.createElement('div');
-        Object.assign(centerPanel.style, {
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            height: '100%',
-            position: 'relative',
-        });
-
+        // Iframe fullscreen — posicao ajustada dinamicamente por _applyLayout
         _iframe = document.createElement('iframe');
-        Object.assign(_iframe.style, {
-            width: '100%', height: '100%',
-            border: 'none', display: 'block',
-        });
+        Object.assign(_iframe.style, { border: 'none', display: 'block' });
         _iframe.setAttribute('allowfullscreen', '');
         _iframe.setAttribute('allow', 'autoplay; gamepad *');
 
@@ -340,9 +359,7 @@
             '</body></html>',
         ].join('');
 
-        centerPanel.appendChild(_iframe);
-
-        // Botao fechar
+        // Botao fechar — z-index acima dos paineis de controle
         var exitBtn = document.createElement('button');
         var exitIcon = document.createElement('span');
         exitIcon.className = 'material-icons';
@@ -352,73 +369,33 @@
         exitBtn.appendChild(exitIcon);
         Object.assign(exitBtn.style, {
             position: 'absolute',
-            top: '8px', right: '8px',
-            zIndex: '10',
+            top: '8px', right: '8px', zIndex: '30',
             width: '36px', height: '36px',
             borderRadius: '50%',
             background: 'rgba(0,0,0,0.65)',
             border: '1px solid rgba(255,255,255,0.3)',
-            color: '#f1f5f9',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            color: '#f1f5f9', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
         });
         exitBtn.addEventListener('click', function () {
             window.fecharJoguinhos ? window.fecharJoguinhos() : window.DonkeyKongGame.fechar();
         });
-        centerPanel.appendChild(exitBtn);
 
-        // --- Painel direito: FIRE + PAUSE ---
-        var rightPanel = document.createElement('div');
-        Object.assign(rightPanel.style, {
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: '14px',
-            height: '100%',
-            padding: '10px 8px',
-            overflow: 'hidden',
-        });
-        rightPanel.appendChild(_makeFireBtn());
-        rightPanel.appendChild(_makeSmallBtn('PAUSE', 3));
+        // Paineis de controle portrait e landscape
+        _landscapeControls = _buildLandscapeControls();
+        _portraitControls  = _buildPortraitControls();
 
-        psp.appendChild(leftPanel);
-        psp.appendChild(centerPanel);
-        psp.appendChild(rightPanel);
-        _overlay.appendChild(psp);
-
-        // Hint de rotacao
-        _rotateHint = document.createElement('div');
-        Object.assign(_rotateHint.style, {
-            position: 'absolute', inset: '0',
-            background: 'rgba(15,23,42,0.95)',
-            display: 'none',
-            flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: '16px',
-            color: '#f1f5f9',
-            fontFamily: "'Russo One', sans-serif",
-            zIndex: '20',
-            pointerEvents: 'none',
-        });
-        var hintIcon = document.createElement('span');
-        hintIcon.className = 'material-icons';
-        hintIcon.textContent = 'screen_rotation';
-        Object.assign(hintIcon.style, { fontSize: '64px', color: '#fcd34d' });
-        var hintText = document.createElement('div');
-        hintText.textContent = 'Gire o celular';
-        Object.assign(hintText.style, { fontSize: '1.1rem', letterSpacing: '1px' });
-        _rotateHint.appendChild(hintIcon);
-        _rotateHint.appendChild(hintText);
-        _overlay.appendChild(_rotateHint);
-
+        _overlay.appendChild(_iframe);
+        _overlay.appendChild(exitBtn);
+        _overlay.appendChild(_landscapeControls);
+        _overlay.appendChild(_portraitControls);
         document.body.appendChild(_overlay);
 
-        _tryLockLandscape();
-        _updateRotateHint();
-        _resizeHandler = function () { _updateRotateHint(); };
+        // Layout inicial + listener para mudancas de orientacao/tamanho
+        _applyLayout();
+        _resizeHandler = function () { _applyLayout(); };
         window.addEventListener('resize', _resizeHandler);
         window.addEventListener('orientationchange', _resizeHandler);
 
@@ -444,9 +421,9 @@
                 window.removeEventListener('orientationchange', _resizeHandler);
                 _resizeHandler = null;
             }
-            _unlockOrientation();
             if (_overlay) { _overlay.remove(); _overlay = null; }
-            _rotateHint = null;
+            _landscapeControls = null;
+            _portraitControls  = null;
             _iframe = null;
             _pressCount = { 4: 0, 5: 0, 6: 0, 7: 0 };
         },

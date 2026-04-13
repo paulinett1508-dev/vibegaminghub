@@ -394,63 +394,36 @@
     var _kh = null, _rh = null;
     var inputJump = false, inputSD = false, inputJumpHeld = false;
     var sdBtnEl = null, jumpBtnEl = null;
-    var rotateHintEl = null;
-    var orientationLocked = false;
+    var _btnBaseTransform = 'translateY(-50%)'; // atualizado por applyLayout
     var S;
 
-    // ---- Orientation (mesma logica de snes.js/donkeykong.js) ----
-    // Pede fullscreen antes do lock — browsers modernos so permitem
-    // orientation.lock() em contexto fullscreen
-    function tryLockLandscape() {
-        if (orientationLocked) return;
-        var lockLandscape = function () {
-            try {
-                if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                    var p = screen.orientation.lock('landscape');
-                    if (p && typeof p.then === 'function') {
-                        p.then(function () { orientationLocked = true; updateRotateHint(); })
-                         .catch(function () { /* fallback vira hint */ });
-                    }
-                }
-            } catch (e) { /* ignora */ }
-        };
-        var el = overlay || document.documentElement;
-        var req = el.requestFullscreen || el.webkitRequestFullscreen ||
-                  el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (req) {
-            try {
-                var fp = req.call(el);
-                if (fp && typeof fp.then === 'function') {
-                    fp.then(lockLandscape).catch(lockLandscape);
-                } else {
-                    lockLandscape();
-                }
-            } catch (e) { lockLandscape(); }
-        } else {
-            lockLandscape();
+    // Reposiciona botoes de controle conforme orientacao
+    function applyLayout() {
+        var portrait = window.innerHeight > window.innerWidth;
+        if (sdBtnEl) {
+            if (portrait) {
+                sdBtnEl.style.top = 'auto';
+                sdBtnEl.style.bottom = '40px';
+                _btnBaseTransform = '';
+                sdBtnEl.style.transform = '';
+            } else {
+                sdBtnEl.style.top = '50%';
+                sdBtnEl.style.bottom = 'auto';
+                _btnBaseTransform = 'translateY(-50%)';
+                sdBtnEl.style.transform = 'translateY(-50%)';
+            }
         }
-    }
-    function exitFullscreen() {
-        try {
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
-                var ex = document.exitFullscreen || document.webkitExitFullscreen ||
-                         document.mozCancelFullScreen || document.msExitFullscreen;
-                if (ex) ex.call(document);
+        if (jumpBtnEl) {
+            if (portrait) {
+                jumpBtnEl.style.top = 'auto';
+                jumpBtnEl.style.bottom = '30px';
+                jumpBtnEl.style.transform = '';
+            } else {
+                jumpBtnEl.style.top = '50%';
+                jumpBtnEl.style.bottom = 'auto';
+                jumpBtnEl.style.transform = 'translateY(-50%)';
             }
-        } catch (e) { /* ignora */ }
-    }
-    function unlockOrientation() {
-        try {
-            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-                screen.orientation.unlock();
-            }
-        } catch (e) { /* ignora */ }
-        orientationLocked = false;
-        exitFullscreen();
-    }
-    function updateRotateHint() {
-        if (!rotateHintEl) return;
-        rotateHintEl.style.display = (window.innerHeight > window.innerWidth) ? 'flex' : 'none';
+        }
     }
 
     function initState() {
@@ -995,7 +968,7 @@
             W=window.innerWidth;H=window.innerHeight;GY=H*0.62;
             canvas.width=W;canvas.height=H;
             S.x=W*0.22;if(S.y>GY)S.y=GY;
-            updateRotateHint();
+            applyLayout();
         };
         window.addEventListener('resize',_rh);
         window.addEventListener('orientationchange',_rh);
@@ -1006,15 +979,14 @@
         if(_rh){window.removeEventListener('resize',_rh);window.removeEventListener('orientationchange',_rh);_rh=null;}
         if(sdBtnEl){sdBtnEl.remove();sdBtnEl=null;}
         if(jumpBtnEl){jumpBtnEl.remove();jumpBtnEl=null;}
-        if(rotateHintEl){rotateHintEl.remove();rotateHintEl=null;}
     }
 
     function createSDBtn() {
         sdBtnEl = document.createElement('button');
         sdBtnEl.style.cssText=['position:fixed','top:50%','left:24px','transform:translateY(-50%)','z-index:9100','width:92px','height:92px','border-radius:50%','background:linear-gradient(135deg,#C02020,#801010)','border:3px solid #FFE040','color:#FFE040','font-family:"Russo One",sans-serif','font-size:12px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 18px rgba(192,32,32,.5)'].join(';');
         sdBtnEl.innerHTML='<span style="font-size:28px;line-height:1;">&#9654;</span><span style="font-size:10px;margin-top:3px;letter-spacing:1px;">SPIN</span>';
-        var down=function(e){if(e)e.preventDefault();inputSD=true;initAC();sdBtnEl.style.opacity='0.75';sdBtnEl.style.transform='translateY(-50%) scale(0.93)';};
-        var up=function(e){if(e)e.preventDefault();inputSD=false;sdBtnEl.style.opacity='';sdBtnEl.style.transform='translateY(-50%)';};
+        var down=function(e){if(e)e.preventDefault();inputSD=true;initAC();sdBtnEl.style.opacity='0.75';sdBtnEl.style.transform=_btnBaseTransform+' scale(0.93)';};
+        var up=function(e){if(e)e.preventDefault();inputSD=false;sdBtnEl.style.opacity='';sdBtnEl.style.transform=_btnBaseTransform;};
         sdBtnEl.addEventListener('pointerdown',down);
         sdBtnEl.addEventListener('pointerup',up);
         sdBtnEl.addEventListener('pointerleave',up);
@@ -1026,20 +998,13 @@
         jumpBtnEl = document.createElement('button');
         jumpBtnEl.style.cssText=['position:fixed','top:50%','right:24px','transform:translateY(-50%)','z-index:9100','width:110px','height:110px','border-radius:50%','background:linear-gradient(135deg,#F8B800,#C07000)','border:3px solid #FFE040','color:#fff','font-family:"Russo One",sans-serif','font-size:16px','cursor:pointer','display:flex','flex-direction:column','align-items:center','justify-content:center','-webkit-tap-highlight-color:transparent','user-select:none','touch-action:none','box-shadow:0 6px 22px rgba(248,184,0,.55)','letter-spacing:1px'].join(';');
         jumpBtnEl.innerHTML='<span class="material-icons" style="font-size:40px;pointer-events:none;">arrow_upward</span><span style="font-size:12px;margin-top:2px;pointer-events:none;">JUMP</span>';
-        var down=function(e){if(e)e.preventDefault();inputJump=true;inputJumpHeld=true;initAC();jumpBtnEl.style.opacity='0.75';jumpBtnEl.style.transform='translateY(-50%) scale(0.93)';};
-        var up=function(e){if(e)e.preventDefault();inputJumpHeld=false;jumpBtnEl.style.opacity='';jumpBtnEl.style.transform='translateY(-50%)';};
+        var down=function(e){if(e)e.preventDefault();inputJump=true;inputJumpHeld=true;initAC();jumpBtnEl.style.opacity='0.75';jumpBtnEl.style.transform=_btnBaseTransform+' scale(0.93)';};
+        var up=function(e){if(e)e.preventDefault();inputJumpHeld=false;jumpBtnEl.style.opacity='';jumpBtnEl.style.transform=_btnBaseTransform;};
         jumpBtnEl.addEventListener('pointerdown',down);
         jumpBtnEl.addEventListener('pointerup',up);
         jumpBtnEl.addEventListener('pointerleave',up);
         jumpBtnEl.addEventListener('pointercancel',up);
         overlay.appendChild(jumpBtnEl);
-    }
-
-    function createRotateHint() {
-        rotateHintEl = document.createElement('div');
-        rotateHintEl.style.cssText=['position:fixed','inset:0','background:rgba(15,23,42,0.95)','display:none','flex-direction:column','align-items:center','justify-content:center','gap:16px','color:#f1f5f9','font-family:"Russo One",sans-serif','z-index:9300','pointer-events:none'].join(';');
-        rotateHintEl.innerHTML='<span class="material-icons" style="font-size:64px;color:#F8B800;">screen_rotation</span><div style="font-size:1.1rem;letter-spacing:1px;">Gire o celular</div>';
-        overlay.appendChild(rotateHintEl);
     }
 
     // ================================================================
@@ -1075,9 +1040,7 @@
             initAssets();  // carrega fundo.png + eggman.gif
             createSDBtn();
             createJumpBtn();
-            createRotateHint();
-            tryLockLandscape();
-            updateRotateHint();
+            applyLayout();
             setupInput();
             gameLoop();
         },
@@ -1085,7 +1048,6 @@
         fechar: function () {
             if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
             removeInput();
-            unlockOrientation();
             if (ac) { ac.close().catch(function(){}); ac = null; }
             if (overlay) { overlay.remove(); overlay = null; canvas = null; ctx = null; }
         },

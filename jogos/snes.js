@@ -6,8 +6,10 @@
 //
 // Fluxo: abrir() → picker de ROMs → selecionar → iframe com EmulatorJS
 //
-// Gamepad: D-pad + B/A/Y/X (diamante) + Start + Select
-// MutationObserver posiciona botoes em layout diamante absoluto
+// Gamepad: D-pad + B/A/Y/X (diamante) + Start + Select + L + R + Analogico
+//
+// Layout responsivo: portrait → iframe no topo + painel controles na base
+//                   landscape → iframe fullscreen + paineis laterais sobrepostos
 // =====================================================================
 
 (function () {
@@ -16,12 +18,12 @@
     var EJS_CDN  = 'https://cdn.emulatorjs.org/stable/data/';
     var ROM_BASE = 'roms/snes/';
 
-    var _overlay = null;
-    var _onKey         = null;
-    var _iframe        = null;
-    var _resizeHandler = null;
-    var _rotateHint    = null;
-    var _orientationLocked = false;
+    var _overlay           = null;
+    var _onKey             = null;
+    var _iframe            = null;
+    var _resizeHandler     = null;
+    var _landscapeControls = null;
+    var _portraitControls  = null;
 
     // Contador de refs por direcao — D-pad e analogico podem
     // pressionar a mesma direcao; so soltamos quando todos liberarem
@@ -51,7 +53,11 @@
 
         var backBtn = document.createElement('button');
         backBtn.setAttribute('aria-label', 'Voltar');
-        backBtn.innerHTML = '<span class="material-icons" style="font-size:24px;pointer-events:none;">arrow_back</span>';
+        var backIcon = document.createElement('span');
+        backIcon.className = 'material-icons';
+        backIcon.textContent = 'arrow_back';
+        backIcon.style.cssText = 'font-size:24px;pointer-events:none;';
+        backBtn.appendChild(backIcon);
         Object.assign(backBtn.style, {
             background: 'none', border: 'none', color: '#f1f5f9',
             cursor: 'pointer', padding: '8px',
@@ -192,7 +198,7 @@
         if (_overlay) { _overlay.remove(); _overlay = null; }
     }
 
-    // ---- Emulador (PSP landscape layout) ----
+    // ---- Emulador ----
 
     // Envia input para o emulador dentro do iframe (mesmo dominio via srcdoc)
     // Mapeamento RetroArch snes9x: B=0 Y=1 Sel=2 Sta=3 Up=4 Dn=5 Lt=6 Rt=7 A=8 X=9 L=10 R=11
@@ -218,65 +224,7 @@
         if (_pressCount[id] === 0) _sim(id, 0);
     }
 
-    // Tenta bloquear a orientacao em landscape.
-    // Requer fullscreen em browsers modernos — por isso pede fullscreen antes.
-    // Se o lock falhar, mostra hint "gire o celular" enquanto innerHeight > innerWidth.
-    function _tryLockLandscape() {
-        if (_orientationLocked) return;
-        var lockLandscape = function () {
-            try {
-                if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                    var p = screen.orientation.lock('landscape');
-                    if (p && typeof p.then === 'function') {
-                        p.then(function () { _orientationLocked = true; _updateRotateHint(); })
-                         .catch(function () { /* fallback vira hint */ });
-                    }
-                }
-            } catch (e) { /* ignora */ }
-        };
-        // Tenta fullscreen (unlock pre-req em Chrome/Firefox mobile)
-        var el = _overlay || document.documentElement;
-        var req = el.requestFullscreen || el.webkitRequestFullscreen ||
-                  el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (req) {
-            try {
-                var fp = req.call(el);
-                if (fp && typeof fp.then === 'function') {
-                    fp.then(lockLandscape).catch(lockLandscape);
-                } else {
-                    lockLandscape();
-                }
-            } catch (e) { lockLandscape(); }
-        } else {
-            lockLandscape();
-        }
-    }
-
-    function _exitFullscreen() {
-        try {
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
-                var ex = document.exitFullscreen || document.webkitExitFullscreen ||
-                         document.mozCancelFullScreen || document.msExitFullscreen;
-                if (ex) ex.call(document);
-            }
-        } catch (e) { /* ignora */ }
-    }
-
-    function _unlockOrientation() {
-        try {
-            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-                screen.orientation.unlock();
-            }
-        } catch (e) { /* ignora */ }
-        _orientationLocked = false;
-        _exitFullscreen();
-    }
-
-    function _updateRotateHint() {
-        if (!_overlay || !_rotateHint) return;
-        var portrait = window.innerHeight > window.innerWidth;
-        _rotateHint.style.display = portrait ? 'flex' : 'none';
-    }
+    // ---- Widgets de controle ----
 
     // Cria botao circular colorido (usado nos botoes YXAB)
     function _makeBtn(text, color, size, onDown, onUp) {
@@ -310,12 +258,12 @@
         return btn;
     }
 
-    // Botao de ombro (L / R) — retangular, largura total do painel
-    function _makeShoulderBtn(text, btnId) {
+    // Botao de ombro (L / R) — retangular; width aceita valor explicito ou '100%'
+    function _makeShoulderBtn(text, btnId, width) {
         var btn = document.createElement('button');
         btn.textContent = text;
         Object.assign(btn.style, {
-            width: '100%',
+            width: width || '100%',
             height: '32px',
             borderRadius: '6px',
             border: '2px solid rgba(255,255,255,0.2)',
@@ -562,6 +510,125 @@
         return wrap;
     }
 
+    // ---- Layout responsivo ----
+
+    // Paineis laterais para landscape (sobrepostos sobre iframe fullscreen)
+    function _buildLandscapeControls() {
+        var lc = document.createElement('div');
+        Object.assign(lc.style, {
+            position: 'absolute',
+            top: '0', left: '0', right: '0', bottom: '0',
+            display: 'none',            // _applyLayout ativa
+            gridTemplateColumns: '130px 1fr 130px',
+            alignItems: 'center',
+            pointerEvents: 'none',      // centro passa toque pro iframe
+            zIndex: '10',
+        });
+
+        var leftPanel = document.createElement('div');
+        Object.assign(leftPanel.style, {
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '8px', height: '100%', padding: '10px 8px',
+            background: 'rgba(17,17,17,0.92)',
+            pointerEvents: 'all', overflow: 'hidden',
+        });
+        leftPanel.appendChild(_makeShoulderBtn('L', 10));
+        leftPanel.appendChild(_makeDpad());
+        leftPanel.appendChild(_makeAnalog());
+        leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
+
+        var centerSpacer = document.createElement('div'); // transparente, pass-through
+
+        var rightPanel = document.createElement('div');
+        Object.assign(rightPanel.style, {
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: '10px', height: '100%', padding: '10px 8px',
+            background: 'rgba(17,17,17,0.92)',
+            pointerEvents: 'all', overflow: 'hidden',
+        });
+        rightPanel.appendChild(_makeShoulderBtn('R', 11));
+        rightPanel.appendChild(_makeDiamond());
+        rightPanel.appendChild(_makeSmallBtn('START', 3));
+
+        lc.appendChild(leftPanel);
+        lc.appendChild(centerSpacer);
+        lc.appendChild(rightPanel);
+        return lc;
+    }
+
+    // Painel inferior para portrait (controles numa faixa na base da tela)
+    function _buildPortraitControls() {
+        var pc = document.createElement('div');
+        Object.assign(pc.style, {
+            position: 'absolute',
+            left: '0', right: '0', bottom: '0',
+            height: '200px',
+            background: 'rgba(15,23,42,0.97)',
+            display: 'none',            // _applyLayout ativa
+            flexDirection: 'column',
+            padding: '8px 16px',
+            gap: '8px',
+            overflow: 'hidden',
+            zIndex: '10',
+        });
+
+        // Linha 1: ombros + SELECT/START
+        var row1 = document.createElement('div');
+        Object.assign(row1.style, {
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+            flexShrink: '0', gap: '8px',
+        });
+        row1.appendChild(_makeShoulderBtn('L', 10, '80px'));
+        row1.appendChild(_makeSmallBtn('SELECT', 2));
+        row1.appendChild(_makeSmallBtn('START', 3));
+        row1.appendChild(_makeShoulderBtn('R', 11, '80px'));
+
+        // Linha 2: D-pad + Analog + Diamond
+        var row2 = document.createElement('div');
+        Object.assign(row2.style, {
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-around',
+            flex: '1',
+        });
+        row2.appendChild(_makeDpad());
+        row2.appendChild(_makeAnalog());
+        row2.appendChild(_makeDiamond());
+
+        pc.appendChild(row1);
+        pc.appendChild(row2);
+        return pc;
+    }
+
+    // Ajusta iframe e visibilidade dos paineis conforme orientacao
+    function _applyLayout() {
+        if (!_iframe || !_landscapeControls || !_portraitControls) return;
+        var portrait = window.innerHeight > window.innerWidth;
+
+        if (portrait) {
+            // Iframe ocupa topo; painel de controles (200px) fica na base
+            Object.assign(_iframe.style, {
+                position: 'absolute',
+                top: '0', left: '0', right: '0', bottom: 'auto',
+                width: '100%', height: 'calc(100% - 200px)',
+            });
+        } else {
+            // Iframe fullscreen; paineis laterais sobrepostos
+            Object.assign(_iframe.style, {
+                position: 'absolute',
+                top: '0', left: '0', right: '0', bottom: '0',
+                width: '100%', height: '100%',
+            });
+        }
+
+        _landscapeControls.style.display = portrait ? 'none' : 'grid';
+        _portraitControls.style.display  = portrait ? 'flex' : 'none';
+    }
+
+    // ---- Lancamento do emulador ----
+
     function _launchEmulator(romUrl) {
         var absRom = new URL(romUrl, window.location.href).href;
 
@@ -569,56 +636,15 @@
         _overlay.id = 'snes-overlay';
         Object.assign(_overlay.style, {
             position: 'fixed',
-            inset: '0',
-            background: '#111',
-            zIndex: '9000',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            top: '0', left: '0', right: '0', bottom: '0',
+            background: '#111', zIndex: '9000',
             overflow: 'hidden',
             WebkitTapHighlightColor: 'transparent',
         });
 
-        // Grade PSP: [painel esquerdo] [tela central] [painel direito]
-        var psp = document.createElement('div');
-        Object.assign(psp.style, {
-            display: 'grid',
-            gridTemplateColumns: '130px 1fr 130px',
-            width: '100%',
-            height: '100%',
-            alignItems: 'center',
-        });
-
-        // --- Painel esquerdo: L + D-pad + Analog + SELECT ---
-        var leftPanel = document.createElement('div');
-        Object.assign(leftPanel.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            height: '100%',
-            padding: '10px 8px',
-            overflow: 'hidden',
-        });
-        leftPanel.appendChild(_makeShoulderBtn('L', 10));
-        leftPanel.appendChild(_makeDpad());
-        leftPanel.appendChild(_makeAnalog());
-        leftPanel.appendChild(_makeSmallBtn('SELECT', 2));
-
-        // --- Painel central: iframe + botao fechar ---
-        var centerPanel = document.createElement('div');
-        Object.assign(centerPanel.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            position: 'relative',
-        });
-
+        // Iframe fullscreen — posicao ajustada dinamicamente por _applyLayout
         _iframe = document.createElement('iframe');
-        Object.assign(_iframe.style, { width: '100%', height: '100%', border: 'none', display: 'block' });
+        Object.assign(_iframe.style, { border: 'none', display: 'block' });
         _iframe.setAttribute('allowfullscreen', '');
         _iframe.setAttribute('allow', 'autoplay; gamepad *');
 
@@ -659,9 +685,7 @@
             '</body></html>',
         ].join('');
 
-        centerPanel.appendChild(_iframe);
-
-        // Botao fechar (canto superior direito da tela central)
+        // Botao fechar — z-index acima dos paineis de controle
         var exitBtn = document.createElement('button');
         var exitIcon = document.createElement('span');
         exitIcon.className = 'material-icons';
@@ -671,80 +695,33 @@
         exitBtn.appendChild(exitIcon);
         Object.assign(exitBtn.style, {
             position: 'absolute',
-            top: '8px',
-            right: '8px',
-            zIndex: '10',
-            width: '36px',
-            height: '36px',
+            top: '8px', right: '8px', zIndex: '30',
+            width: '36px', height: '36px',
             borderRadius: '50%',
             background: 'rgba(0,0,0,0.65)',
             border: '1px solid rgba(255,255,255,0.3)',
-            color: '#f1f5f9',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            color: '#f1f5f9', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             touchAction: 'manipulation',
             WebkitTapHighlightColor: 'transparent',
         });
         exitBtn.addEventListener('click', function () {
             window.fecharJoguinhos ? window.fecharJoguinhos() : window.SNESGame.fechar();
         });
-        centerPanel.appendChild(exitBtn);
 
-        // --- Painel direito: R + diamante YXAB + START ---
-        var rightPanel = document.createElement('div');
-        Object.assign(rightPanel.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            height: '100%',
-            padding: '10px 8px',
-            overflow: 'hidden',
-        });
-        rightPanel.appendChild(_makeShoulderBtn('R', 11));
-        rightPanel.appendChild(_makeDiamond());
-        rightPanel.appendChild(_makeSmallBtn('START', 3));
+        // Paineis de controle portrait e landscape
+        _landscapeControls = _buildLandscapeControls();
+        _portraitControls  = _buildPortraitControls();
 
-        psp.appendChild(leftPanel);
-        psp.appendChild(centerPanel);
-        psp.appendChild(rightPanel);
-        _overlay.appendChild(psp);
-
-        // Hint de rotacao (mostrado quando portrait e lock falhou)
-        _rotateHint = document.createElement('div');
-        Object.assign(_rotateHint.style, {
-            position: 'absolute',
-            inset: '0',
-            background: 'rgba(15,23,42,0.95)',
-            display: 'none',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '16px',
-            color: '#f1f5f9',
-            fontFamily: "'Russo One', sans-serif",
-            zIndex: '20',
-            pointerEvents: 'none',
-        });
-        var hintIcon = document.createElement('span');
-        hintIcon.className = 'material-icons';
-        hintIcon.textContent = 'screen_rotation';
-        Object.assign(hintIcon.style, { fontSize: '64px', color: '#a78bfa' });
-        var hintText = document.createElement('div');
-        hintText.textContent = 'Gire o celular';
-        Object.assign(hintText.style, { fontSize: '1.1rem', letterSpacing: '1px' });
-        _rotateHint.appendChild(hintIcon);
-        _rotateHint.appendChild(hintText);
-        _overlay.appendChild(_rotateHint);
-
+        _overlay.appendChild(_iframe);
+        _overlay.appendChild(exitBtn);
+        _overlay.appendChild(_landscapeControls);
+        _overlay.appendChild(_portraitControls);
         document.body.appendChild(_overlay);
 
-        _tryLockLandscape();
-        _updateRotateHint();
-        _resizeHandler = function () { _updateRotateHint(); };
+        // Layout inicial + listener para mudancas de orientacao/tamanho
+        _applyLayout();
+        _resizeHandler = function () { _applyLayout(); };
         window.addEventListener('resize', _resizeHandler);
         window.addEventListener('orientationchange', _resizeHandler);
 
@@ -771,9 +748,9 @@
                 window.removeEventListener('orientationchange', _resizeHandler);
                 _resizeHandler = null;
             }
-            _unlockOrientation();
             if (_overlay) { _overlay.remove(); _overlay = null; }
-            _rotateHint = null;
+            _landscapeControls = null;
+            _portraitControls  = null;
             _iframe = null;
             _pressCount = { 4: 0, 5: 0, 6: 0, 7: 0 };
         },
