@@ -187,9 +187,11 @@
         if (!_overlay || !_iframe) return;
 
         // Iframe ocupa o espaco entre os dois paineis (sempre).
+        // width/height explicitos sao necessarios para que o WebKit mobile
+        // exponha corretamente o viewport interno do iframe (100% > 100vh).
         _iframe.style.cssText =
-            'position:absolute;top:0;bottom:0;' +
-            'left:'+PANEL_L+'px;right:'+PANEL_R+'px;' +
+            'position:absolute;top:0;left:'+PANEL_L+'px;' +
+            'width:calc(100% - '+(PANEL_L+PANEL_R)+'px);height:100%;' +
             'border:none;display:block;';
         if (_lcPanel) _lcPanel.style.display = 'flex';
         if (_rcPanel) _rcPanel.style.display = 'flex';
@@ -244,8 +246,9 @@
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#000;width:100%;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center}',
-            '#ejs-game{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}',
+            'html{height:100%;overflow:hidden}',
+            'body{background:#000;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+            '#ejs-game{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}',
             '.ejs_menu_bar,.ejs-menu,.ejs_virtualGamepad_parent{display:none!important}',
             'canvas{display:block!important;max-width:100%!important;max-height:100%!important;margin:0 auto!important;image-rendering:pixelated}',
             '</style></head><body>',
