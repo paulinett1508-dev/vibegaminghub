@@ -1,9 +1,11 @@
 // =====================================================================
 // megadrive.js — Emulador Mega Drive via EmulatorJS (CDN)
 // =====================================================================
-// Controles externos (fora do iframe) — igual ao SNES:
-// Landscape: painel esquerdo (D-pad) + iframe central + painel direito (A/B/C/START)
-// Portrait:  iframe superior + painel inferior (D-pad + A/B/C + START)
+// Layout unico (sempre horizontal):
+//   painel esquerdo (D-pad) + iframe central + painel direito (A/B/C/START)
+// Em portrait, o overlay inteiro e rotacionado 90° via CSS para forcar
+// a visualizacao horizontal (sem depender de screen.orientation.lock,
+// que nao funciona em iOS Safari).
 // =====================================================================
 
 (function () {
@@ -15,13 +17,12 @@
     // RetroPad indices para genesis_plus_gx
     var BTN = { B:0, A:1, START:3, UP:4, DOWN:5, LEFT:6, RIGHT:7, C:8 };
 
-    var PANEL_L = 120, PANEL_R = 140, PANEL_B = 175;
+    var PANEL_L = 120, PANEL_R = 140;
 
     var _overlay = null;
     var _iframe  = null;
     var _lcPanel = null;
     var _rcPanel = null;
-    var _pcPanel = null;
     var _rh      = null;
     var _onKey   = null;
 
@@ -145,7 +146,7 @@
             'align-items:center', 'justify-content:center',
             'gap:8px', 'z-index:10',
         ].join(';');
-        _lcPanel.appendChild(_makeDpad(38));
+        _lcPanel.appendChild(_makeDpad(44));
         _overlay.appendChild(_lcPanel);
 
         // Painel direito: START (topo) + A/B/C cluster (baixo)
@@ -179,46 +180,38 @@
         _overlay.appendChild(_rcPanel);
     }
 
-    function _buildPortraitControls() {
-        var bg = 'rgba(10,16,28,0.97)';
-        _pcPanel = document.createElement('div');
-        _pcPanel.style.cssText = [
-            'position:absolute', 'left:0', 'right:0', 'bottom:0',
-            'height:'+PANEL_B+'px', 'background:'+bg,
-            'border-top:2px solid #222',
-            'display:none', 'align-items:center',
-            'justify-content:space-around', 'padding:0 12px', 'z-index:10',
-        ].join(';');
-        _pcPanel.appendChild(_makeDpad(34));
-        _pcPanel.appendChild(_makeStartPill());
-        var btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex;align-items:flex-end;gap:6px;';
-        btnRow.appendChild(_makeBtn('A', 50,
-            'linear-gradient(135deg,#D83020,#901010)',
-            '0 4px 12px rgba(216,48,32,0.5)', BTN.A));
-        btnRow.appendChild(_makeBtn('B', 60,
-            'linear-gradient(135deg,#1864D8,#0A3D90)',
-            '0 4px 14px rgba(24,100,216,0.55)', BTN.B));
-        btnRow.appendChild(_makeBtn('C', 72,
-            'linear-gradient(135deg,#2880F0,#1050C0)',
-            '0 4px 18px rgba(40,128,240,0.65)', BTN.C));
-        _pcPanel.appendChild(btnRow);
-        _overlay.appendChild(_pcPanel);
-    }
-
+    // ── Layout sempre horizontal ──────────────────────────────────────
+    // Iframe sempre entre os paineis laterais. Se o aparelho estiver em
+    // portrait, o overlay inteiro e rotacionado 90° via CSS.
     function _applyLayout() {
-        if (!_iframe) return;
+        if (!_overlay || !_iframe) return;
+
+        // Iframe ocupa o espaco entre os dois paineis (sempre).
+        _iframe.style.cssText =
+            'position:absolute;top:0;bottom:0;' +
+            'left:'+PANEL_L+'px;right:'+PANEL_R+'px;' +
+            'border:none;display:block;';
+        if (_lcPanel) _lcPanel.style.display = 'flex';
+        if (_rcPanel) _rcPanel.style.display = 'flex';
+
+        // Forca visualizacao horizontal: rotaciona overlay quando portrait.
         var portrait = window.innerHeight > window.innerWidth;
         if (portrait) {
-            _iframe.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:'+PANEL_B+'px;border:none;';
-            if (_lcPanel) _lcPanel.style.display = 'none';
-            if (_rcPanel) _rcPanel.style.display = 'none';
-            if (_pcPanel) _pcPanel.style.display = 'flex';
+            _overlay.style.cssText = [
+                'position:fixed',
+                'top:50%', 'left:50%',
+                'width:100vh', 'height:100vw',
+                'margin-top:-50vw', 'margin-left:-50vh',
+                'transform:rotate(90deg)', 'transform-origin:center center',
+                'background:#0f172a', 'z-index:9000', 'overflow:hidden',
+                '-webkit-tap-highlight-color:transparent',
+            ].join(';');
         } else {
-            _iframe.style.cssText = 'position:absolute;top:0;bottom:0;left:'+PANEL_L+'px;right:'+PANEL_R+'px;border:none;';
-            if (_lcPanel) _lcPanel.style.display = 'flex';
-            if (_rcPanel) _rcPanel.style.display = 'flex';
-            if (_pcPanel) _pcPanel.style.display = 'none';
+            _overlay.style.cssText = [
+                'position:fixed', 'inset:0',
+                'background:#0f172a', 'z-index:9000', 'overflow:hidden',
+                '-webkit-tap-highlight-color:transparent',
+            ].join(';');
         }
     }
 
@@ -251,10 +244,10 @@
             '<meta name="viewport" content="width=device-width,initial-scale=1">',
             '<style>',
             '*{margin:0;padding:0;box-sizing:border-box}',
-            'body{background:#0f172a;width:100%;height:100vh;overflow:hidden}',
-            '#ejs-game{width:100%;height:100%;overflow:hidden}',
+            'body{background:#000;width:100%;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+            '#ejs-game{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}',
             '.ejs_menu_bar,.ejs-menu,.ejs_virtualGamepad_parent{display:none!important}',
-            'canvas{display:block!important;max-width:100%!important;max-height:100%!important}',
+            'canvas{display:block!important;max-width:100%!important;max-height:100%!important;margin:0 auto!important;image-rendering:pixelated}',
             '</style></head><body>',
             '<div id="ejs-game"></div>',
             '<script>',
@@ -304,7 +297,6 @@
 
         // --- Constroi paineis e adiciona ao body ---
         _buildLandscapeControls();
-        _buildPortraitControls();
         document.body.appendChild(_overlay);
 
         // --- Layout inicial + resize ---
@@ -332,7 +324,7 @@
         fechar: function () {
             if (_rh) { window.removeEventListener('resize', _rh); window.removeEventListener('orientationchange', _rh); _rh = null; }
             if (_onKey) { document.removeEventListener('keydown', _onKey); _onKey = null; }
-            _lcPanel = _rcPanel = _pcPanel = _iframe = null;
+            _lcPanel = _rcPanel = _iframe = null;
             if (_overlay) { _overlay.remove(); _overlay = null; }
         },
     };
