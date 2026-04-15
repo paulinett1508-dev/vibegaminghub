@@ -29,7 +29,7 @@
     function _simulateInput(btnId, val) {
         try {
             var emu = _iframe && _iframe.contentWindow && _iframe.contentWindow.EJS_emulator;
-            if (emu && emu.gameManager) emu.gameManager.simulateInput(1, btnId, val);
+            if (emu && emu.gameManager) emu.gameManager.simulateInput(0, btnId, val);
         } catch (e) {}
     }
 
@@ -302,6 +302,10 @@
         _buildLandscapeControls();
         document.body.appendChild(_overlay);
 
+        // --- Fullscreen: esconde barra do sistema (bateria/hora/notificacoes) ---
+        var _req = _overlay.requestFullscreen || _overlay.webkitRequestFullscreen;
+        if (_req) { try { _req.call(_overlay); } catch (e) {} }
+
         // --- Layout inicial + resize ---
         _applyLayout();
         _rh = function () { _applyLayout(); };
@@ -325,6 +329,10 @@
         },
 
         fechar: function () {
+            var _exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (_exit && (document.fullscreenElement || document.webkitFullscreenElement)) {
+                try { _exit.call(document); } catch (e) {}
+            }
             if (_rh) { window.removeEventListener('resize', _rh); window.removeEventListener('orientationchange', _rh); _rh = null; }
             if (_onKey) { document.removeEventListener('keydown', _onKey); _onKey = null; }
             _lcPanel = _rcPanel = _iframe = null;
